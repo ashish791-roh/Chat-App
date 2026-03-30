@@ -28,6 +28,12 @@ function cn(...inputs: (string | false | null | undefined)[]): string {
 
 export default function ChatPage() {
   const router = useRouter();
+  const [chats, setChats] = useState([
+  { id: "1", name: "Shiwani", isGroup: false, lastMessage: "Welcome back!", status: "Online" },
+  // Groups will be added here dynamically
+]);
+
+
   
   // UI States
   const [input, setInput] = useState("");
@@ -46,19 +52,13 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Chat & Contact States
-  const [friends] = useState([
+  // Group & Contact States (New)
+  const [activeChat, setActiveChat] = useState({ id: "1", name: "Shiwani", isGroup: false, members: [] });
+  const [friends, setFriends] = useState([
     { uid: "other", displayName: "Shiwani" },
     { uid: "2", displayName: "Tanvi" },
     { uid: "3", displayName: "Aman" }
   ]);
-
-  const [chats, setChats] = useState([
-    { id: "1", name: "Shiwani", isGroup: false, lastMessage: "Welcome back!", status: "Active now" },
-    { id: "2", name: "Tanvi", isGroup: false, lastMessage: "See you at college!", status: "Offline" }
-  ]);
-
-  const [activeChat, setActiveChat] = useState(chats[0]);
 
   // Message State
   const [messages, setMessages] = useState<Message[]>([
@@ -81,6 +81,13 @@ export default function ChatPage() {
     }
   }, [router]);
 
+  // FEATURE: Notification Permissions
+  useEffect(() => {
+    if (typeof window !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
   // Auto-scroll logic
   useEffect(() => {
     if (scrollRef.current) {
@@ -88,6 +95,7 @@ export default function ChatPage() {
     }
   }, [messages, showEmoji, showGif, replyingTo, uploadProgress, isOtherUserTyping]);
 
+  // FEATURE: Typing Indicators Logic
   const handleInputChange = (val: string) => {
     setInput(val);
     if (val.length > 0) {
@@ -97,17 +105,46 @@ export default function ChatPage() {
     }
   };
 
+  // FEATURE: File Upload Logic
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadProgress(0);
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 15;
+      if (progress > 100) progress = 100;
+      setUploadProgress(progress);
+      
+      if (progress >= 100) {
+        clearInterval(interval);
+        const fileMessage: Message = {
+          id: Date.now().toString(),
+          senderId: "me",
+          senderName: "Ashish",
+          text: file.type.startsWith('image/') ? URL.createObjectURL(file) : `📄 ${URL.createObjectURL(file)}`,
+          timestamp: new Date().toISOString(),
+          isMe: true,
+          status: 'sent'
+        };
+        setMessages(prev => [...prev, fileMessage]);
+        setUploadProgress(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    }, 200);
+  };
+
   const handleCreateGroup = (groupData: any) => {
-    const newGroup = {
+    // This logic will eventually hit your Firebase/Backend
+    console.log("Creating Group:", groupData);
+    const newChat = {
         id: Date.now().toString(),
         name: groupData.name,
         isGroup: true,
-        members: groupData.members,
-        lastMessage: "You created this group",
-        status: `${groupData.members.length} members`
+        members: groupData.members
     };
-    setChats(prev => [newGroup, ...prev]);
-    setActiveChat(newGroup);
+    setActiveChat(newChat);
     setIsModalOpen(false);
   };
 
@@ -133,31 +170,6 @@ export default function ChatPage() {
     setReplyingTo(null);
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadProgress(0);
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 20;
-      setUploadProgress(progress);
-      if (progress >= 100) {
-        clearInterval(interval);
-        const fileMessage: Message = {
-          id: Date.now().toString(),
-          senderId: "me",
-          senderName: "Ashish",
-          text: file.type.startsWith('image/') ? URL.createObjectURL(file) : `📄 ${file.name}`,
-          timestamp: new Date().toISOString(),
-          isMe: true,
-          status: 'sent'
-        };
-        setMessages(prev => [...prev, fileMessage]);
-        setUploadProgress(null);
-      }
-    }, 150);
-  };
-
   const handleGifSend = (url: string) => {
     const gifMessage: Message = { id: Date.now().toString(), senderId: "me", senderName: "Ashish", text: url, timestamp: new Date().toISOString(), isMe: true, status: 'sent' };
     setMessages((prev) => [...prev, gifMessage]);
@@ -179,7 +191,7 @@ export default function ChatPage() {
   return (
     <main className="flex h-screen bg-white dark:bg-slate-950 overflow-hidden text-gray-900 dark:text-gray-100 transition-colors relative">
       
-      {/* OVERLAYS */}
+      {/* OVERLAYS & SIDEBARS */}
       <MediaSidebar isOpen={isMediaOpen} onClose={() => setIsMediaOpen(false)} messages={messages} />
       <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
       {isModalOpen && (
@@ -212,103 +224,92 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* WHATSAPP-STYLE SIDEBAR */}
+      {/* CONTACTS SIDEBAR */}
       <aside className="w-80 border-r border-gray-200 dark:border-slate-800 hidden md:flex flex-col bg-gray-50 dark:bg-slate-900/50">
         <div className="p-5 border-b dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
           <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold text-xl">
               <Users size={20} className="bg-blue-600 p-1.5 rounded-lg text-white" /> BlinkChat
           </div>
           <div className="flex items-center gap-1">
-             <button onClick={() => setIsModalOpen(true)} className="p-2 text-gray-500 hover:text-blue-600 rounded-full transition-all" title="Create Group"><UserPlus size={20} /></button>
-             <ThemeToggle />
+             <button
+                onClick={() => setIsModalOpen(true)}
+                className="p-2 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded-full transition-all"
+                title="Create Group"
+              >
+                <UserPlus size={20} />
+              </button>
+              <ThemeToggle />
           </div>
         </div>
-
-        <div className="p-4 bg-white dark:bg-slate-900">
+        <div className="p-4 flex-1 overflow-y-auto space-y-4">
+          <div className="px-2">
             <div className="relative">
-              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search or start new chat" className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-slate-800 rounded-xl text-xs border-none focus:ring-2 ring-blue-500 outline-none transition-all" />
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Username or Phone..." className="w-full pl-10 pr-12 py-2.5 bg-white dark:bg-slate-800 rounded-xl text-xs border dark:border-slate-700 focus:ring-2 ring-blue-500 outline-none transition-all" />
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto space-y-1 bg-white dark:bg-slate-900">
-          {chats.map((chat) => (
-            <div 
-              key={chat.id}
-              onClick={() => setActiveChat(chat)}
-              className={cn(
-                "flex items-center gap-3 p-4 cursor-pointer transition-all border-l-4",
-                activeChat.id === chat.id ? "bg-blue-50 dark:bg-slate-800 border-blue-600" : "hover:bg-gray-50 dark:hover:bg-slate-800/50 border-transparent"
-              )}
-            >
-              <div className={cn(
-                "w-12 h-12 rounded-full flex items-center justify-center text-white font-bold shadow-sm",
-                chat.isGroup ? "bg-gradient-to-br from-orange-400 to-rose-500" : "bg-blue-600"
-              )}>
-                {chat.isGroup ? <Users size={20} /> : chat.name.charAt(0)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-bold truncate">{chat.name}</h3>
-                  <span className="text-[10px] text-gray-400">12:45</span>
-                </div>
-                <p className="text-xs text-gray-500 truncate">{chat.lastMessage}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="p-4 border-t dark:border-slate-800 bg-white dark:bg-slate-900">
-          <div onClick={() => setIsProfileOpen(true)} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer">
-             <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">A</div>
-             <div className="flex-1 text-xs font-bold">Ashish Rohilla</div>
-             <Settings size={14} className="text-gray-400" />
+          </div>
+          <div onClick={() => setIsProfileOpen(true)} className="group flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-transparent hover:border-blue-500 cursor-pointer">
+            <div className="w-11 h-11 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">A</div>
+            <div className="flex-1 text-sm font-bold">Ashish Rohilla<p className="text-[10px] text-gray-400 font-normal">Online</p></div>
+            <Settings size={16} className="text-gray-300 group-hover:text-blue-500" />
           </div>
         </div>
+        <div className="p-4 border-t dark:border-slate-800 bg-white dark:bg-slate-900">
+          <button onClick={() => { localStorage.removeItem("blinkchat_user"); router.push("/auth/login"); }} className="flex items-center justify-center gap-2 text-gray-500 hover:text-red-500 w-full py-2 rounded-xl transition-all"><LogOut size={18} /> Logout</button>
+        </div>
       </aside>
+      
 
       {/* CHAT MAIN */}
       <section className="flex-1 flex flex-col h-full bg-white dark:bg-slate-950 relative">
         <header className="h-[73px] px-4 md:px-6 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-20">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setIsMediaOpen(true)}>
+          <div className="flex items-center gap-2 md:gap-3 cursor-pointer" onClick={() => setIsMediaOpen(true)}>
             <div className="relative">
                 <div className={cn(
                     "w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-md",
-                    activeChat.isGroup ? "bg-gradient-to-tr from-orange-400 to-rose-500" : "bg-blue-600"
+                    activeChat.isGroup ? "bg-gradient-to-tr from-indigo-500 to-purple-600" : "bg-gradient-to-tr from-blue-500 to-purple-500"
                 )}>
-                    {activeChat.isGroup ? <Users size={18} /> : activeChat.name.charAt(0)}
+                    {activeChat.isGroup ? 'GP' : activeChat.name.charAt(0)}
                 </div>
                 {!activeChat.isGroup && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-800 rounded-full"></span>}
             </div>
             <div>
-                <h2 className="font-bold text-gray-800 dark:text-white leading-tight">{activeChat.name}</h2>
-                <span className="text-[11px] text-green-500 font-bold">{activeChat.status}</span>
+                <h2 className="font-bold text-gray-800 dark:text-white">{activeChat.name}</h2>
+                <span className="text-[11px] text-green-500 font-bold">
+                    {activeChat.isGroup ? `${activeChat.members.length} Members` : 'Active now'}
+                </span>
             </div>
           </div>
-          <div className="flex items-center gap-2 md:gap-4 text-gray-500 dark:text-gray-400">
-            <button className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors"><Video size={20} /></button>
-            <button className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors"><Phone size={20} /></button>
-            <div className="w-[1px] h-6 bg-gray-200 dark:bg-slate-800 mx-1 hidden md:block"></div>
-            <button className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors"><Search size={20} /></button>
-            <button onClick={() => setIsMediaOpen(true)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors"><MoreVertical size={20} /></button>
-          </div>
+          <button onClick={() => setIsMediaOpen(true)} className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full" title="View media"><MoreVertical size={20} /></button>
         </header>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 bg-[#F8F9FB] dark:bg-slate-950 space-y-1">
           {messages.map((msg) => (
             <div key={msg.id} className="flex flex-col">
+                 {/* Show sender name in Groups if it's not the current user */}
                 {activeChat.isGroup && !msg.isMe && (
                    <span className="text-[10px] text-blue-600 font-bold ml-12 mb-1 uppercase tracking-wider">{msg.senderName}</span>
                 )}
-                <ChatBubble message={msg} onReply={setReplyingTo} onActionMenu={setActiveMessage} />
+                <ChatBubble 
+                    message={msg} 
+                    onReply={setReplyingTo} 
+                    onActionMenu={setActiveMessage} 
+                />
             </div>
           ))}
           {isOtherUserTyping && <TypingIndicator username="Shiwani" />}
+          
+          {/* UPLOAD PROGRESS CARD */}
           {uploadProgress !== null && (
-            <div className="flex justify-end mb-4">
+            <div className="flex justify-end mb-4 animate-in slide-in-from-right-2">
               <div className="bg-blue-50 dark:bg-slate-800 p-3 rounded-2xl border dark:border-slate-700 w-48">
-                <div className="flex items-center gap-3 mb-2"><File size={16} className="text-blue-600 animate-pulse" /><span className="text-[10px] font-bold text-gray-500 uppercase">Uploading...</span></div>
-                <div className="h-1 w-full bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden"><div className="h-full bg-blue-600 transition-all duration-300" style={{ width: `${uploadProgress}%` }} /></div>
+                <div className="flex items-center gap-3 mb-2">
+                  <File size={16} className="text-blue-600 animate-pulse" />
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Uploading...</span>
+                </div>
+                <div className="h-1 w-full bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-600" style={{ width: `${uploadProgress}%` }} />
+                </div>
               </div>
             </div>
           )}
@@ -316,21 +317,24 @@ export default function ChatPage() {
 
         {/* INPUT SECTION */}
         <div className="p-4 border-t border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 relative z-20">
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" title="Upload a file" />
+          
           {replyingTo && (
             <div className="max-w-4xl mx-auto mb-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-t-xl border-l-4 border-blue-600 flex justify-between items-center">
-              <div className="truncate pr-4"><p className="text-[10px] font-bold text-blue-600 uppercase">Replying to {replyToName}</p><p className="text-xs text-gray-400 truncate">{replyingTo.text}</p></div>
-              <button onClick={() => setReplyingTo(null)}><X size={18} /></button>
+              <div className="truncate pr-4"><p className="text-[10px] font-bold text-blue-600 uppercase">Replying to {replyingTo.senderName}</p><p className="text-xs text-gray-400 truncate">{replyingTo.text}</p></div>
+              <button onClick={() => setReplyingTo(null)} title="Clear reply"><X size={18} /></button>
             </div>
           )}
-          {showEmoji && <div className="absolute bottom-20 left-4 z-[100]"><ChatEmojiPicker onEmojiClick={(e: any) => handleInputChange(input + e)} theme="dark" /></div>}
+
+          {showEmoji && <div className="absolute bottom-20 left-4 z-[100]"><ChatEmojiPicker onEmojiClick={(e) => handleInputChange(input + e)} theme="dark" /></div>}
           {showGif && <div className="absolute bottom-20 left-24 z-[100]"><GifPicker onGifClick={handleGifSend} /></div>}
+
           <form onSubmit={handleSendMessage} className={cn("max-w-4xl mx-auto flex items-center gap-2 bg-gray-100 dark:bg-slate-800 p-2 border dark:border-slate-700 transition-all", replyingTo ? "rounded-b-2xl" : "rounded-2xl")}>
-            <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-500 hover:text-blue-500"><Paperclip size={22} /></button>
-            <button type="button" onClick={() => { setShowEmoji(!showEmoji); setShowGif(false); }} className="p-2 text-gray-500 hover:text-blue-500"><Smile size={22} /></button>
-            <button type="button" onClick={() => { setShowGif(!showGif); setShowEmoji(false); }} className="p-2 text-gray-500 hover:text-pink-500"><Gift size={22} /></button>
+            <button type="button" onClick={() => fileInputRef.current?.click()} title="Upload file" className="p-2 text-gray-500 hover:text-blue-500"><Paperclip size={22} /></button>
+            <button type="button" onClick={() => { setShowEmoji(!showEmoji); setShowGif(false); }} title="Emoji picker" className="p-2 text-gray-500 hover:text-blue-500"><Smile size={22} /></button>
+            <button type="button" onClick={() => { setShowGif(!showGif); setShowEmoji(false); }} className="p-2 text-gray-500 hover:text-pink-500" title="Send GIF"><Gift size={22} /></button>
             <input type="text" value={input} onChange={(e) => handleInputChange(e.target.value)} placeholder="Type a message..." className="flex-1 bg-transparent border-none px-2 py-2 text-sm outline-none dark:text-white" />
-            <button type="submit" disabled={!input.trim()} className="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 shadow-md transition-all active:scale-95"><Send size={18} fill="currentColor" /></button>
+            <button type="submit" disabled={!input.trim()} className="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20" title="Send message"><Send size={18} fill="currentColor" /></button>
           </form>
         </div>
       </section>
@@ -342,34 +346,75 @@ export default function ChatPage() {
 const CreateGroupModal = ({ friends, currentUser, onClose, onCreate }: any) => {
     const [groupName, setGroupName] = useState('');
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
-    const toggleMember = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
-    const handleSubmit = () => { if (!groupName || selectedIds.length === 0) return; onCreate({ name: groupName, members: [...selectedIds, currentUser.uid] }); };
+  
+    const toggleMember = (id: string) => {
+      setSelectedIds(prev => 
+        prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+      );
+    };
+  
+    const handleSubmit = () => {
+      if (!groupName || selectedIds.length === 0) return;
+      onCreate({
+        name: groupName,
+        members: [...selectedIds, currentUser.uid],
+      });
+    };
   
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4" onClick={onClose}>
         <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl border dark:border-slate-800 animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
           <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Create Group</h2>
+          
           <div className="space-y-4">
             <div>
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Group Name</label>
-                <input type="text" placeholder="Enter group name..." className="w-full p-4 mt-1 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white rounded-2xl border dark:border-slate-700 focus:ring-2 ring-blue-500 outline-none" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
+                <input 
+                    type="text" 
+                    placeholder="Enter group name..."
+                    className="w-full p-4 mt-1 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white rounded-2xl border dark:border-slate-700 focus:ring-2 ring-blue-500 outline-none"
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                />
             </div>
+    
             <div>
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Select Members</label>
                 <div className="mt-2 max-h-48 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                     {friends.map((friend: any) => (
-                    <div key={friend.uid} className={cn("flex items-center p-3 rounded-2xl cursor-pointer transition-all border", selectedIds.includes(friend.uid) ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500" : "bg-gray-50 dark:bg-slate-800 border-transparent hover:border-gray-300")} onClick={() => toggleMember(friend.uid)}>
-                        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold mr-3">{friend.displayName.charAt(0)}</div>
+                    <div 
+                        key={friend.uid} 
+                        className={cn(
+                            "flex items-center p-3 rounded-2xl cursor-pointer transition-all border",
+                            selectedIds.includes(friend.uid) ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500" : "bg-gray-50 dark:bg-slate-800 border-transparent hover:border-gray-300"
+                        )}
+                        onClick={() => toggleMember(friend.uid)}
+                    >
+                        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold mr-3">
+                            {friend.displayName.charAt(0)}
+                        </div>
                         <span className="flex-1 text-sm font-medium">{friend.displayName}</span>
-                        <div className={cn("w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center", selectedIds.includes(friend.uid) ? "bg-blue-600 border-blue-600" : "border-gray-400")}>{selectedIds.includes(friend.uid) && <X size={12} className="text-white rotate-45" />}</div>
+                        <div className={cn(
+                            "w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center",
+                            selectedIds.includes(friend.uid) ? "bg-blue-600 border-blue-600" : "border-gray-400"
+                        )}>
+                            {selectedIds.includes(friend.uid) && <X size={12} className="text-white rotate-45" />}
+                        </div>
                     </div>
                     ))}
                 </div>
             </div>
           </div>
+  
           <div className="flex gap-3 mt-8">
             <button onClick={onClose} className="flex-1 py-4 text-gray-500 font-bold hover:bg-gray-100 dark:hover:bg-slate-800 rounded-2xl transition-colors">Cancel</button>
-            <button onClick={handleSubmit} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 disabled:opacity-50 transition-all" disabled={!groupName || selectedIds.length === 0}>Create</button>
+            <button 
+              onClick={handleSubmit}
+              className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 disabled:opacity-50 transition-all"
+              disabled={!groupName || selectedIds.length === 0}
+            >
+              Create
+            </button>
           </div>
         </div>
       </div>

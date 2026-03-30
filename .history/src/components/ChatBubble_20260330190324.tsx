@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Check, CheckCheck, Reply, Trash2, File } from "lucide-react";
+import { Check, CheckCheck, Reply, Trash2 } from "lucide-react";
 import { Message } from "@/types";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -16,16 +16,18 @@ function cn(...inputs: ClassValue[]) {
 export default function ChatBubble({ 
   message, 
   onReply, 
-  onActionMenu 
+  onActionMenu,
+  onPreview // NEW: Trigger for preview modal
 }: { 
   message: Message, 
   onReply: (msg: Message) => void,
-  onActionMenu: (msg: Message) => void 
+  onActionMenu: (msg: Message) => void,
+  onPreview: (url: string) => void // Type definition
 }) {
   const [formattedTime, setFormattedTime] = useState("");
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // LOGIC: Check if the message is a Giphy/Image/Blob URL
+  // CORRECTED MEDIA LOGIC: Detects blob previews, common image types, and explicit types
   const isMedia = 
     message.text.startsWith("blob:") || 
     message.text.startsWith("data:image") ||
@@ -34,7 +36,7 @@ export default function ChatBubble({
     message.type === 'image';
 
   useEffect(() => {
-    // Only format time on client to avoid hydration mismatch
+    // Client-side time formatting
     setFormattedTime(
       new Date(message.timestamp).toLocaleTimeString([], { 
         hour: "2-digit", 
@@ -47,7 +49,7 @@ export default function ChatBubble({
   const startPress = () => {
     timerRef.current = setTimeout(() => {
       onActionMenu(message);
-    }, 500); 
+    }, 500);
   };
 
   const endPress = () => {
@@ -74,7 +76,7 @@ export default function ChatBubble({
       onTouchStart={startPress}
       onTouchEnd={endPress}
     >
-      {/* Reply Context Header */}
+      {/* Reply Context */}
       {message.replyTo && (
         <div className="text-[10px] bg-gray-200 dark:bg-slate-800 px-3 py-2 rounded-t-xl border-l-4 border-blue-500 opacity-70 mb-[-10px] max-w-[60%] truncate dark:text-gray-300">
           <span className="font-bold">{message.replyTo.senderName}</span>: {message.replyTo.text}
@@ -98,9 +100,10 @@ export default function ChatBubble({
               alt="Sent media" 
               className="max-h-72 w-full object-contain"
               loading="lazy"
-              // Opens image in new tab to allow system default viewer/zoom
-              onClick={() => window.open(message.text, "_blank", "noopener,noreferrer")}
+              // Trigger preview modal on click
+              onClick={() => onPreview(message.text)}
             />
+            {/* Overlay Time for Media */}
             <div className="absolute bottom-1 right-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded-lg flex items-center gap-1 text-white">
               <span className="text-[9px]">{formattedTime}</span>
               {message.isMe && (
@@ -109,28 +112,9 @@ export default function ChatBubble({
             </div>
           </div>
         ) : (
-          // RENDER TEXT / DOCUMENTS
+          // RENDER TEXT
           <div className="px-4 py-2 prose prose-sm dark:prose-invert max-w-none break-words leading-relaxed">
-            {message.text.startsWith("📄") ? (
-              <div 
-                onClick={() => {
-                  const fileUrl = message.text.replace("📄 ", "");
-                  // Instructs browser to open the file URL directly
-                  window.open(fileUrl, "_blank", "noopener,noreferrer");
-                }}
-                className="flex items-center gap-3 p-2 bg-gray-50 dark:bg-slate-900/50 rounded-xl border border-dashed border-gray-300 dark:border-slate-700 hover:border-blue-500 transition-all cursor-pointer group"
-              >
-                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                  <File size={18} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold truncate">{message.text.replace("📄 ", "")}</p>
-                  <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter">Open System Viewer</p>
-                </div>
-              </div>
-            ) : (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
-            )}
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
             
             <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
               <span className="text-[9px]">{formattedTime}</span>
@@ -147,7 +131,7 @@ export default function ChatBubble({
           </div>
         )}
 
-        {/* Reactions Overlay */}
+        {/* Reactions */}
         {message.reactions && Object.keys(message.reactions).length > 0 && (
           <div className={cn(
             "absolute -bottom-3 flex gap-1 z-10",

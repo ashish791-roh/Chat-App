@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Check, CheckCheck, Reply, Trash2, File } from "lucide-react";
+import { Check, CheckCheck, Reply, Trash2 } from "lucide-react";
 import { Message } from "@/types";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -25,13 +25,13 @@ export default function ChatBubble({
   const [formattedTime, setFormattedTime] = useState("");
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // LOGIC: Check if the message is a Giphy/Image/Blob URL
+  // LOGIC: Check if the message is a Giphy/Image URL
   const isMedia = 
-    message.text.startsWith("blob:") || 
-    message.text.startsWith("data:image") ||
-    message.text.includes("giphy.com") || 
-    message.text.match(/\.(jpeg|jpg|gif|png|webp|svg|heic)/i) != null ||
-    message.type === 'image';
+  message.text.startsWith("blob:") || 
+  message.text.startsWith("data:image") ||
+  message.text.includes("giphy.com") || 
+  message.text.match(/\.(jpeg|jpg|gif|png|webp|svg|heic)/i) != null ||
+  message.type === 'image';
 
   useEffect(() => {
     // Only format time on client to avoid hydration mismatch
@@ -47,15 +47,17 @@ export default function ChatBubble({
   const startPress = () => {
     timerRef.current = setTimeout(() => {
       onActionMenu(message);
-    }, 500); 
+    }, 500); // 500ms hold triggers the Unified Menu
   };
 
   const endPress = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
   };
 
+  // 1. Handle "Delete for me" (Hides component)
   if (message.isDeletedForMe) return null;
 
+  // 2. Handle "Delete for everyone" UI
   if (message.isDeleted) {
     return (
       <div className={cn("flex w-full mb-4", message.isMe ? "justify-end" : "justify-start")}>
@@ -87,6 +89,7 @@ export default function ChatBubble({
         message.isMe 
           ? "bg-blue-600 text-white rounded-tr-none" 
           : "bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 rounded-tl-none border dark:border-slate-700",
+        // Special styling for Media (GIFs/Images)
         isMedia && "bg-transparent border-none shadow-none p-0 overflow-hidden"
       )}>
         
@@ -98,9 +101,8 @@ export default function ChatBubble({
               alt="Sent media" 
               className="max-h-72 w-full object-contain"
               loading="lazy"
-              // Opens image in new tab to allow system default viewer/zoom
-              onClick={() => window.open(message.text, "_blank", "noopener,noreferrer")}
             />
+            {/* Overlay Time for Media */}
             <div className="absolute bottom-1 right-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded-lg flex items-center gap-1 text-white">
               <span className="text-[9px]">{formattedTime}</span>
               {message.isMe && (
@@ -109,29 +111,11 @@ export default function ChatBubble({
             </div>
           </div>
         ) : (
-          // RENDER TEXT / DOCUMENTS
+          // RENDER TEXT (Markdown)
           <div className="px-4 py-2 prose prose-sm dark:prose-invert max-w-none break-words leading-relaxed">
-            {message.text.startsWith("📄") ? (
-              <div 
-                onClick={() => {
-                  const fileUrl = message.text.replace("📄 ", "");
-                  // Instructs browser to open the file URL directly
-                  window.open(fileUrl, "_blank", "noopener,noreferrer");
-                }}
-                className="flex items-center gap-3 p-2 bg-gray-50 dark:bg-slate-900/50 rounded-xl border border-dashed border-gray-300 dark:border-slate-700 hover:border-blue-500 transition-all cursor-pointer group"
-              >
-                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                  <File size={18} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold truncate">{message.text.replace("📄 ", "")}</p>
-                  <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter">Open System Viewer</p>
-                </div>
-              </div>
-            ) : (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
-            )}
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
             
+            {/* Standard Time + Status */}
             <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
               <span className="text-[9px]">{formattedTime}</span>
               {message.isMe && (
