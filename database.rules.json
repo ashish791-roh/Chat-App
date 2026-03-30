@@ -1,0 +1,20 @@
+{
+  "rules": {
+    "status": {
+      "$uid": {
+        // Only the user themselves can write their own status
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "typing": {
+      "$convId": {
+        "$uid": {
+          // Only the user can set their own typing flag
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid === $uid"
+        }
+      }
+    }
+  }
+}
