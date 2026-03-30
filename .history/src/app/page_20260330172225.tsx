@@ -254,7 +254,7 @@ export default function ChatPage() {
           {replyingTo && (
             <div className="max-w-4xl mx-auto mb-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-t-xl border-l-4 border-blue-600 flex justify-between items-center">
               <div className="truncate pr-4"><p className="text-[10px] font-bold text-blue-600 uppercase">Replying to {replyingTo.senderName}</p><p className="text-xs text-gray-400 truncate">{replyingTo.text}</p></div>
-              <button onClick={() => setReplyingTo(null)} title="Clear reply"><X size={18} /></button>
+              <button onClick={() => setReplyingTo(null)}><X size={18} /></button>
             </div>
           )}
 
@@ -262,11 +262,11 @@ export default function ChatPage() {
           {showGif && <div className="absolute bottom-20 left-24 z-[100]"><GifPicker onGifClick={handleGifSend} /></div>}
 
           <form onSubmit={handleSendMessage} className={cn("max-w-4xl mx-auto flex items-center gap-2 bg-gray-100 dark:bg-slate-800 p-2 border dark:border-slate-700 transition-all", replyingTo ? "rounded-b-2xl" : "rounded-2xl")}>
-            <button type="button" onClick={() => fileInputRef.current?.click()} title="Upload file" className="p-2 text-gray-500 hover:text-blue-500"><Paperclip size={22} /></button>
-            <button type="button" onClick={() => { setShowEmoji(!showEmoji); setShowGif(false); }} title="Emoji picker" className="p-2 text-gray-500 hover:text-blue-500"><Smile size={22} /></button>
-            <button type="button" onClick={() => { setShowGif(!showGif); setShowEmoji(false); }} className="p-2 text-gray-500 hover:text-pink-500" title="Send GIF"><Gift size={22} /></button>
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-500 hover:text-blue-500"><Paperclip size={22} /></button>
+            <button type="button" onClick={() => { setShowEmoji(!showEmoji); setShowGif(false); }} className="p-2 text-gray-500 hover:text-blue-500"><Smile size={22} /></button>
+            <button type="button" onClick={() => { setShowGif(!showGif); setShowEmoji(false); }} className="p-2 text-gray-500 hover:text-pink-500"><Gift size={22} /></button>
             <input type="text" value={input} onChange={(e) => handleInputChange(e.target.value)} placeholder="Type a message..." className="flex-1 bg-transparent border-none px-2 py-2 text-sm outline-none dark:text-white" />
-            <button type="submit" disabled={!input.trim()} className="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20" title="Send message"><Send size={18} fill="currentColor" /></button>
+            <button type="submit" disabled={!input.trim()} className="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20"><Send size={18} fill="currentColor" /></button>
           </form>
         </div>
       </section>

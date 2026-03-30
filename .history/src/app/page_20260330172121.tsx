@@ -201,7 +201,7 @@ export default function ChatPage() {
             <div className="relative">
               <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Username or Phone..." className="w-full pl-10 pr-12 py-2.5 bg-white dark:bg-slate-800 rounded-xl text-xs border dark:border-slate-700 focus:ring-2 ring-blue-500 outline-none transition-all" />
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <button title="Add user" className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-blue-600 text-white rounded-lg"><UserPlus size={14} /></button>
+              <button className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-blue-600 text-white rounded-lg"><UserPlus size={14} /></button>
             </div>
           </div>
           <div onClick={() => setIsProfileOpen(true)} className="group flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-transparent hover:border-blue-500 cursor-pointer">
@@ -222,14 +222,14 @@ export default function ChatPage() {
             <div className="relative"><div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">S</div><span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-800 rounded-full"></span></div>
             <div><h2 className="font-bold text-gray-800 dark:text-white">Shiwani</h2><span className="text-[11px] text-green-500 font-bold">Active now</span></div>
           </div>
-          <button onClick={() => setIsMediaOpen(true)} className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full" title="View media"><MoreVertical size={20} /></button>
+          <button onClick={() => setIsMediaOpen(true)} className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full"><MoreVertical size={20} /></button>
         </header>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 bg-[#F8F9FB] dark:bg-slate-950 space-y-1">
           {messages.map((msg) => (
             <ChatBubble key={msg.id} message={msg} onReply={setReplyingTo} onActionMenu={setActiveMessage} />
           ))}
-          {isOtherUserTyping && <TypingIndicator username="Shiwani" />}
+          {isOtherUserTyping && <TypingIndicator />}
           
           {/* UPLOAD PROGRESS CARD */}
           {uploadProgress !== null && (
@@ -249,12 +249,12 @@ export default function ChatPage() {
 
         {/* INPUT SECTION */}
         <div className="p-4 border-t border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 relative z-20">
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" title="Upload a file" />
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
           
           {replyingTo && (
             <div className="max-w-4xl mx-auto mb-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-t-xl border-l-4 border-blue-600 flex justify-between items-center">
               <div className="truncate pr-4"><p className="text-[10px] font-bold text-blue-600 uppercase">Replying to {replyingTo.senderName}</p><p className="text-xs text-gray-400 truncate">{replyingTo.text}</p></div>
-              <button onClick={() => setReplyingTo(null)} title="Clear reply"><X size={18} /></button>
+              <button onClick={() => setReplyingTo(null)}><X size={18} /></button>
             </div>
           )}
 
@@ -262,11 +262,11 @@ export default function ChatPage() {
           {showGif && <div className="absolute bottom-20 left-24 z-[100]"><GifPicker onGifClick={handleGifSend} /></div>}
 
           <form onSubmit={handleSendMessage} className={cn("max-w-4xl mx-auto flex items-center gap-2 bg-gray-100 dark:bg-slate-800 p-2 border dark:border-slate-700 transition-all", replyingTo ? "rounded-b-2xl" : "rounded-2xl")}>
-            <button type="button" onClick={() => fileInputRef.current?.click()} title="Upload file" className="p-2 text-gray-500 hover:text-blue-500"><Paperclip size={22} /></button>
-            <button type="button" onClick={() => { setShowEmoji(!showEmoji); setShowGif(false); }} title="Emoji picker" className="p-2 text-gray-500 hover:text-blue-500"><Smile size={22} /></button>
-            <button type="button" onClick={() => { setShowGif(!showGif); setShowEmoji(false); }} className="p-2 text-gray-500 hover:text-pink-500" title="Send GIF"><Gift size={22} /></button>
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-500 hover:text-blue-500"><Paperclip size={22} /></button>
+            <button type="button" onClick={() => { setShowEmoji(!showEmoji); setShowGif(false); }} className="p-2 text-gray-500 hover:text-blue-500"><Smile size={22} /></button>
+            <button type="button" onClick={() => { setShowGif(!showGif); setShowEmoji(false); }} className="p-2 text-gray-500 hover:text-pink-500"><Gift size={22} /></button>
             <input type="text" value={input} onChange={(e) => handleInputChange(e.target.value)} placeholder="Type a message..." className="flex-1 bg-transparent border-none px-2 py-2 text-sm outline-none dark:text-white" />
-            <button type="submit" disabled={!input.trim()} className="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20" title="Send message"><Send size={18} fill="currentColor" /></button>
+            <button type="submit" disabled={!input.trim()} className="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20"><Send size={18} fill="currentColor" /></button>
           </form>
         </div>
       </section>

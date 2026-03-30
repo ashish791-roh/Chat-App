@@ -65,7 +65,7 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onC
                 {notifications ? <Bell size={18} className="text-blue-500" /> : <BellOff size={18} className="text-gray-400" />}
                 <span className="text-sm font-medium dark:text-white">Push Notifications</span>
               </div>
-              <button onClick={() => setNotifications(!notifications)} title="Toggle push notifications" className={`w-10 h-5 rounded-full transition-colors ${notifications ? 'bg-blue-600' : 'bg-gray-400'}`}>
+              <button onClick={() => setNotifications(!notifications)} className={`w-10 h-5 rounded-full transition-colors ${notifications ? 'bg-blue-600' : 'bg-gray-400'}`}>
                 <div className={`w-4 h-4 bg-white rounded-full transition-transform ${notifications ? 'translate-x-5' : 'translate-x-1'}`} />
               </button>
             </div>

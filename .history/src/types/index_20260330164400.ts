@@ -1,17 +1,5 @@
 // src/types/index.ts
-export interface UserProfile {
-  uid: string;
-  displayName: string;
-  username: string; 
-  phoneNumber: string; 
-  photoURL?: string; 
-  bio?: string;
-  lastSeen?: string;
-  contacts: string[]; 
-  notificationSettings: {
-    enabled: boolean;
-  };
-}
+
 
 export interface Message {
   id: string;

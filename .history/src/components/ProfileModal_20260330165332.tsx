@@ -47,7 +47,7 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onC
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Full Name</label>
               <div className="flex items-center gap-3 bg-gray-50 dark:bg-slate-800 p-3.5 rounded-2xl border dark:border-slate-700">
                 <User size={18} className="text-gray-400" />
-                <input value={name} onChange={(e) => setName(e.target.value)} title="Enter your full name" className="bg-transparent outline-none text-sm w-full dark:text-white" />
+                <input value={name} onChange={(e) => setName(e.target.value)} className="bg-transparent outline-none text-sm w-full dark:text-white" />
               </div>
             </div>
 
@@ -65,7 +65,7 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onC
                 {notifications ? <Bell size={18} className="text-blue-500" /> : <BellOff size={18} className="text-gray-400" />}
                 <span className="text-sm font-medium dark:text-white">Push Notifications</span>
               </div>
-              <button onClick={() => setNotifications(!notifications)} title="Toggle push notifications" className={`w-10 h-5 rounded-full transition-colors ${notifications ? 'bg-blue-600' : 'bg-gray-400'}`}>
+              <button onClick={() => setNotifications(!notifications)} className={`w-10 h-5 rounded-full transition-colors ${notifications ? 'bg-blue-600' : 'bg-gray-400'}`}>
                 <div className={`w-4 h-4 bg-white rounded-full transition-transform ${notifications ? 'translate-x-5' : 'translate-x-1'}`} />
               </button>
             </div>

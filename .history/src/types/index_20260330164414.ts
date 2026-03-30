@@ -7,7 +7,7 @@ export interface UserProfile {
   photoURL?: string; 
   bio?: string;
   lastSeen?: string;
-  contacts: string[]; 
+  contacts: string[]; // List of UIDs
   notificationSettings: {
     enabled: boolean;
   };
