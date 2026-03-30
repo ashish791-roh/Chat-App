@@ -1,49 +1,32 @@
-// firestore.rules
-// Deploy with: firebase deploy --only firestore:rules
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Users can read any profile but only write their own
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
-
-    // Messages live inside a conversation document.
-    // A user may only read/write conversations they are a participant in.
-    // Convention: conversationId = [uid1, uid2].sort().join("_")
     match /conversations/{convId}/messages/{msgId} {
       allow read: if request.auth != null
         && isParticipant(request.auth.uid, convId);
 
-      // Anyone in the conversation can create a message
       allow create: if request.auth != null
         && isParticipant(request.auth.uid, convId)
         && request.resource.data.senderId == request.auth.uid;
 
-      // Allow update for: reactions, status, deletedForUsers, isDeleted
-      // Only the original sender may set isDeleted = true
+
       allow update: if request.auth != null
         && isParticipant(request.auth.uid, convId)
         && (
-          // Anyone in the conversation can update reactions / status / deletedForUsers
-          onlyChanging(['reactions', 'status', 'deletedForUsers'])
-          ||
-          // Only the sender can delete for everyone
+       
           (resource.data.senderId == request.auth.uid
             && onlyChanging(['isDeleted', 'text', 'reactions']))
         );
 
-      allow delete: if false; // we never hard-delete messages
+      allow delete: if false; 
     }
   }
 
-  // ── Helper functions ────────────────────────────────────────────────────────
   function isParticipant(uid, convId) {
-    // The conversation ID is always "smallerUid_largerUid".
-    // We split and check membership without any extra DB lookup.
     let parts = convId.split('_');
     return parts.size() == 2 && (parts[0] == uid || parts[1] == uid);
   }
