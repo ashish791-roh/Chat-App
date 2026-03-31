@@ -14,13 +14,15 @@ service cloud.firestore {
         && request.resource.data.senderId == request.auth.uid;
 
 
-      allow update: if request.auth != null
-        && isParticipant(request.auth.uid, convId)
-        && (
-       
-          (resource.data.senderId == request.auth.uid
-            && onlyChanging(['isDeleted', 'text', 'reactions']))
-        );
+        allow update: if request.auth != null
+          && isParticipant(request.auth.uid, convId)
+          && (
+            (resource.data.senderId == request.auth.uid
+              && onlyChanging(['isDeleted', 'text', 'reactions', 'deletedForUsers']))
+            ||
+            (resource.data.recipientId == request.auth.uid
+              && onlyChanging(['status']))
+          );
 
       allow delete: if false; 
     }
