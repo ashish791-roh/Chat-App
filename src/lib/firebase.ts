@@ -1,20 +1,73 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getDatabase } from "firebase/database";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+  onAuthStateChanged,
+  User as FirebaseUser,
+} from "firebase/auth";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "./firebase";
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+export interface AppUser {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string;
+  bio: string;
+}
+
+const formatUser = (firebaseUser: FirebaseUser): AppUser => ({
+  id: firebaseUser.uid,
+  name: firebaseUser.displayName || "Unknown",
+  email: firebaseUser.email || "",
+  avatar: firebaseUser.photoURL || "",
+  bio: "",
+});
+
+export const signup = async (
+  name: string,
+  email: string,
+  password: string
+): Promise<AppUser> => {
+  const { user } = await createUserWithEmailAndPassword(auth, email, password);
+
+  await updateProfile(user, { displayName: name });
+
+  await setDoc(doc(db, "users", user.uid), {
+    id: user.uid,
+    name,
+    email,
+    avatar: "",
+    bio: "",
+    isOnline: true,
+    createdAt: serverTimestamp(),
+  });
+
+  return formatUser(user);
 };
 
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+export const login = async (
+  email: string,
+  password: string
+): Promise<AppUser> => {
+  const { user } = await signInWithEmailAndPassword(auth, email, password);
+  return formatUser(user);
+};
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const rtdb = getDatabase(app); 
+export const logout = async (): Promise<void> => {
+  await signOut(auth);
+};
+
+export const getUserProfile = async (uid: string) => {
+  const snap = await getDoc(doc(db, "users", uid));
+  return snap.exists() ? (snap.data() as AppUser) : null;
+};
+
+export const subscribeToAuthState = (
+  callback: (user: AppUser | null) => void
+) => {
+  return onAuthStateChanged(auth, (firebaseUser) => {
+    callback(firebaseUser ? formatUser(firebaseUser) : null);
+  });
+};
