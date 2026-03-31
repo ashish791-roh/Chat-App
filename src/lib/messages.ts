@@ -18,8 +18,7 @@ import {
 import { db } from "./firebase";
 import { Message } from "@/types";
 
-// ── ID ─
-// Always sort the two UIDs so the same room is found regardless of who opens it first.
+// ── ID ───────────────────────────────
 export const getConversationId = (uid1: string, uid2: string): string =>
   [uid1, uid2].sort().join("_");
 
@@ -27,8 +26,7 @@ export const getConversationId = (uid1: string, uid2: string): string =>
 const msgsRef = (convId: string) =>
   collection(db, "conversations", convId, "messages");
 
-// ── Send msg ────────────────────────────────────────────────────────────
-
+// ── Send msg ────────────────────────────────────
 export interface SendMessagePayload {
   senderId: string;
   senderName: string;
@@ -54,7 +52,7 @@ export const sendMessage = async (payload: SendMessagePayload): Promise<void> =>
   });
 };
 
-// ──  listener ────────────────────────────────────────────────────────
+// ──  listener ────────────
 export const subscribeToMessages = (
   myId: string,
   recipientId: string,
@@ -93,8 +91,7 @@ export const subscribeToMessages = (
   });
 };
 
-// ── reaction ───────────────────────────────────────────────────────────
-
+// ── reaction ───────────────────
 export const toggleReaction = async (
   convId: string,
   messageId: string,
@@ -104,7 +101,6 @@ export const toggleReaction = async (
   const msgDoc = doc(db, "conversations", convId, "messages", messageId);
   const snap = await getDoc(msgDoc);
   if (!snap.exists()) return;
-
   const reactions: Record<string, string[]> = snap.data().reactions || {};
   const current = reactions[emoji] || [];
   const alreadyReacted = current.includes(myId);
@@ -122,8 +118,7 @@ export const toggleReaction = async (
   await updateDoc(msgDoc, { reactions: updated });
 };
 
-// ── Delete
-
+// ── Delete ────────────
 export const deleteMessageForMe = async (
   convId: string,
   messageId: string,
@@ -134,7 +129,6 @@ export const deleteMessageForMe = async (
     deletedForUsers: arrayUnion(myId),
   });
 };
-
 
 export const deleteMessageForEveryone = async (
   convId: string,
@@ -148,11 +142,9 @@ export const deleteMessageForEveryone = async (
   });
 };
 
-
-
 export const markMessagesAsRead = async (
   convId: string,
-  recipientId: string, // the other person's ID (the sender of those messages)
+  recipientId: string, // other person's ID
   myId: string
 ): Promise<void> => {
   const q = query(
