@@ -123,10 +123,10 @@ export default function ChatPage() {
 
   // Auth Sync
   useEffect(() => {
-    if (!loading && !authUser) {
+    if (!loading && !authuser) {
       router.replace("/auth/login");
-    }
-  }, [authUser, loading, router]);
+  }
+  }, [user, loading]);
 
   // Auto-scroll logic
   useEffect(() => {

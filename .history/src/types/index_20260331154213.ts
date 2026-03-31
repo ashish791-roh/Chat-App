@@ -26,7 +26,7 @@ export interface Message {
     text: string;
     senderName: string;
   };
-  reactions?: Record<string, string[]>;
+  reactions?: { [emoji: string]: string[] }; // Emoji -> List of UserIDs
   isDeleted?: boolean;
   isDeletedForMe?: boolean;
 }

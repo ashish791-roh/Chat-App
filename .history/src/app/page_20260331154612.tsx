@@ -124,7 +124,7 @@ export default function ChatPage() {
   // Auth Sync
   useEffect(() => {
     if (!loading && !authUser) {
-      router.replace("/auth/login");
+      router.push("/auth/login");
     }
   }, [authUser, loading, router]);
 

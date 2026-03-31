@@ -122,11 +122,13 @@ export default function ChatPage() {
   ]);
 
   // Auth Sync
+  const { user, loading } = useAuth();
+
   useEffect(() => {
-    if (!loading && !authUser) {
+    if (!loading && !user) {
       router.replace("/auth/login");
-    }
-  }, [authUser, loading, router]);
+  }
+  }, [user, loading]);
 
   // Auto-scroll logic
   useEffect(() => {

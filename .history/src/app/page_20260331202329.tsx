@@ -126,7 +126,7 @@ export default function ChatPage() {
     if (!loading && !authUser) {
       router.replace("/auth/login");
     }
-  }, [authUser, loading, router]);
+  }, [authUser, loading, ]);
 
   // Auto-scroll logic
   useEffect(() => {

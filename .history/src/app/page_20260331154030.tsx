@@ -28,51 +28,49 @@ function cn(...inputs: (string | false | null | undefined)[]): string {
 }
 
 /**
- * FIXED: Component moved outside of ChatPage to prevent remounting.
+ * FIXED: Moved Modal outside of the main component to prevent 
+ * unnecessary remounts and state loss during parent renders.
  */
 const CreateGroupModal = ({ friends, currentUser, onClose, onCreate }: any) => {
-  const [groupName, setGroupName] = useState('');
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [groupName, setGroupName] = useState('');
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    
+    const toggleMember = (id: string) => 
+        setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    
+    const handleSubmit = () => { 
+        if (!groupName || selectedIds.length === 0) return; 
+        onCreate({ name: groupName, members: [...selectedIds, currentUser.uid] }); 
+    };
   
-  const toggleMember = (id: string) => 
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
-  
-  const handleSubmit = () => { 
-    if (!groupName || selectedIds.length === 0) return; 
-    onCreate({ name: groupName, members: [...selectedIds, currentUser.uid] }); 
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl border dark:border-slate-800 animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Create Group</h2>
-        <div className="space-y-4">
-          <div>
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Group Name</label>
-            <input type="text" placeholder="Enter group name..." className="w-full p-4 mt-1 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white rounded-2xl border dark:border-slate-700 focus:ring-2 ring-blue-500 outline-none" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Select Members</label>
-            <div className="mt-2 max-h-48 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-              {friends.map((friend: any) => (
-                <div key={friend.uid} className={cn("flex items-center p-3 rounded-2xl cursor-pointer transition-all border", selectedIds.includes(friend.uid) ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500" : "bg-gray-50 dark:bg-slate-800 border-transparent hover:border-gray-300")} onClick={() => toggleMember(friend.uid)}>
-                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold mr-3">{friend.displayName.charAt(0)}</div>
-                  <span className="flex-1 text-sm font-medium">{friend.displayName}</span>
-                  <div className={cn("w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center", selectedIds.includes(friend.uid) ? "bg-blue-600 border-blue-600" : "border-gray-400")}>
-                    {selectedIds.includes(friend.uid) && <X size={12} className="text-white rotate-45" />}
-                  </div>
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4" onClick={onClose}>
+        <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl border dark:border-slate-800 animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Create Group</h2>
+          <div className="space-y-4">
+            <div>
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Group Name</label>
+                <input type="text" placeholder="Enter group name..." className="w-full p-4 mt-1 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white rounded-2xl border dark:border-slate-700 focus:ring-2 ring-blue-500 outline-none" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
+            </div>
+            <div>
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Select Members</label>
+                <div className="mt-2 max-h-48 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                    {friends.map((friend: any) => (
+                    <div key={friend.uid} className={cn("flex items-center p-3 rounded-2xl cursor-pointer transition-all border", selectedIds.includes(friend.uid) ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500" : "bg-gray-50 dark:bg-slate-800 border-transparent hover:border-gray-300")} onClick={() => toggleMember(friend.uid)}>
+                        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold mr-3">{friend.displayName.charAt(0)}</div>
+                        <span className="flex-1 text-sm font-medium">{friend.displayName}</span>
+                        <div className={cn("w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center", selectedIds.includes(friend.uid) ? "bg-blue-600 border-blue-600" : "border-gray-400")}>{selectedIds.includes(friend.uid) && <X size={12} className="text-white rotate-45" />}</div>
+                    </div>))}
                 </div>
-              ))}
             </div>
           </div>
-        </div>
-        <div className="flex gap-3 mt-8">
-          <button onClick={onClose} className="flex-1 py-4 text-gray-500 font-bold hover:bg-gray-100 dark:hover:bg-slate-800 rounded-2xl transition-colors">Cancel</button>
-          <button onClick={handleSubmit} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 disabled:opacity-50 transition-all" disabled={!groupName || selectedIds.length === 0}>Create</button>
+          <div className="flex gap-3 mt-8">
+            <button onClick={onClose} className="flex-1 py-4 text-gray-500 font-bold hover:bg-gray-100 dark:hover:bg-slate-800 rounded-2xl transition-colors">Cancel</button>
+            <button onClick={handleSubmit} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 disabled:opacity-50 transition-all" disabled={!groupName || selectedIds.length === 0}>Create</button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
 };
 
 export default function ChatPage() {
@@ -90,7 +88,7 @@ export default function ChatPage() {
   const [showGif, setShowGif] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // Real-time States
+  // Real-time Interaction States
   const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -108,6 +106,7 @@ export default function ChatPage() {
   ]);
 
   const [activeChat, setActiveChat] = useState(chats[0]);
+
   const [messages, setMessages] = useState<Message[]>([
     { 
       id: "1", 
@@ -121,10 +120,10 @@ export default function ChatPage() {
     }
   ]);
 
-  // Auth Sync
+  // Sync Auth State & Redirect
   useEffect(() => {
     if (!loading && !authUser) {
-      router.replace("/auth/login");
+      router.push("/auth/login");
     }
   }, [authUser, loading, router]);
 
@@ -135,9 +134,7 @@ export default function ChatPage() {
     }
   }, [messages, showEmoji, showGif, replyingTo, uploadProgress, isOtherUserTyping]);
 
-  /**
-   * FIXED: Added explicit connect() and missing real-time listeners.
-   */
+  // Socket Connection and Listeners
   useEffect(() => {
     if (!socket.connected) socket.connect();
 
@@ -148,17 +145,12 @@ export default function ChatPage() {
       });
     });
 
-    // Listen for others typing to current user or active chat room
     socket.on("typing", (data) => {
-      if (data.to === authUser?.id || data.to === activeChat.id) {
-        setIsOtherUserTyping(true);
-      }
+        if (data.to === authUser?.id) setIsOtherUserTyping(true);
     });
 
     socket.on("stop_typing", (data) => {
-      if (data.to === authUser?.id || data.to === activeChat.id) {
-        setIsOtherUserTyping(false);
-      }
+        if (data.to === authUser?.id) setIsOtherUserTyping(false);
     });
 
     return () => {
@@ -166,7 +158,7 @@ export default function ChatPage() {
       socket.off("typing");
       socket.off("stop_typing");
     };
-  }, [authUser, activeChat.id]);     
+  }, [authUser]);     
 
   const currentUser = authUser ? {
     uid: authUser.id,
@@ -239,15 +231,15 @@ export default function ChatPage() {
   const handleGifSend = (url: string) => {
     if (!currentUser) return;
     const gifMessage: Message = { 
-      id: Date.now().toString(), 
-      senderId: currentUser.uid, 
-      senderName: currentUser.displayName, 
-      receiverId: !activeChat.isGroup ? activeChat.id : undefined,
-      groupId: activeChat.isGroup ? activeChat.id : undefined,
-      text: url, 
-      timestamp: new Date().toISOString(), 
-      isMe: true, 
-      status: 'sent' 
+        id: Date.now().toString(), 
+        senderId: currentUser.uid, 
+        senderName: currentUser.displayName, 
+        receiverId: !activeChat.isGroup ? activeChat.id : undefined,
+        groupId: activeChat.isGroup ? activeChat.id : undefined,
+        text: url, 
+        timestamp: new Date().toISOString(), 
+        isMe: true, 
+        status: 'sent' 
     };
     setMessages((prev) => [...prev, gifMessage]);
     setShowGif(false);
@@ -275,20 +267,20 @@ export default function ChatPage() {
         isOpen={isMediaOpen} 
         onClose={() => setIsMediaOpen(false)} 
         messages={messages.filter(msg => 
-          activeChat.isGroup ? msg.groupId === activeChat.id : (msg.receiverId === activeChat.id || (msg.senderId === activeChat.id && msg.receiverId === currentUser.uid))
+            activeChat.isGroup ? msg.groupId === activeChat.id : (msg.receiverId === activeChat.id || (msg.senderId === activeChat.id && msg.receiverId === currentUser.uid))
         )} 
       />
       <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
       {isModalOpen && (
         <CreateGroupModal 
-          friends={friends} 
-          currentUser={currentUser} 
-          onClose={() => setIsModalOpen(false)} 
-          onCreate={(groupData: any) => {
-            const newGroup = { id: Date.now().toString(), name: groupData.name, isGroup: true, lastMessage: "Group created", status: "Active" };
-            setChats(prev => [newGroup, ...prev]);
-            setIsModalOpen(false);
-          }} 
+            friends={friends} 
+            currentUser={currentUser} 
+            onClose={() => setIsModalOpen(false)} 
+            onCreate={(groupData: any) => {
+                const newGroup = { id: Date.now().toString(), name: groupData.name, isGroup: true, lastMessage: "Group created", status: "Active" };
+                setChats(prev => [newGroup, ...prev]);
+                setIsModalOpen(false);
+            }} 
         />
       )}
 
@@ -315,19 +307,19 @@ export default function ChatPage() {
       <aside className="w-80 border-r border-gray-200 dark:border-slate-800 hidden md:flex flex-col bg-gray-50 dark:bg-slate-900/50">
         <div className="p-5 border-b dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
           <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold text-xl">
-            <Users size={20} className="bg-blue-600 p-1.5 rounded-lg text-white" /> BlinkChat
+              <Users size={20} className="bg-blue-600 p-1.5 rounded-lg text-white" /> BlinkChat
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => setIsModalOpen(true)} className="p-2 text-gray-500 hover:text-blue-600 rounded-full transition-all" title="Create Group"><UserPlus size={20} /></button>
-            <ThemeToggle />
+             <button onClick={() => setIsModalOpen(true)} className="p-2 text-gray-500 hover:text-blue-600 rounded-full transition-all" title="Create Group"><UserPlus size={20} /></button>
+             <ThemeToggle />
           </div>
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900">
-          <div className="relative">
-            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search chats" className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-slate-800 rounded-xl text-xs border-none focus:ring-2 ring-blue-500 outline-none transition-all" />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-          </div>
+            <div className="relative">
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search chats" className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-slate-800 rounded-xl text-xs border-none focus:ring-2 ring-blue-500 outline-none transition-all" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            </div>
         </div>
 
         <div className="flex-1 overflow-y-auto space-y-1 bg-white dark:bg-slate-900">
@@ -361,7 +353,11 @@ export default function ChatPage() {
           <div onClick={() => setIsProfileOpen(true)} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer group">
             <div className="relative">
               {currentUser.profilePic ? (
-                <img src={currentUser.profilePic} className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm" alt="Me" />
+                <img 
+                  src={currentUser.profilePic} 
+                  className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm" 
+                  alt="Me" 
+                />
               ) : (
                 <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md">
                   {currentUser.displayName.charAt(0)}
@@ -382,14 +378,17 @@ export default function ChatPage() {
         <header className="h-[73px] px-4 md:px-6 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-20">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => setIsMediaOpen(true)}>
             <div className="relative">
-              <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-md", activeChat.isGroup ? "bg-gradient-to-tr from-orange-400 to-rose-500" : "bg-blue-600")}>
-                {activeChat.isGroup ? <Users size={18} /> : activeChat.name.charAt(0)}
-              </div>
-              {!activeChat.isGroup && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-800 rounded-full"></span>}
+                <div className={cn(
+                    "w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-md",
+                    activeChat.isGroup ? "bg-gradient-to-tr from-orange-400 to-rose-500" : "bg-blue-600"
+                )}>
+                    {activeChat.isGroup ? <Users size={18} /> : activeChat.name.charAt(0)}
+                </div>
+                {!activeChat.isGroup && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-800 rounded-full"></span>}
             </div>
             <div>
-              <h2 className="font-bold text-gray-800 dark:text-white leading-tight">{activeChat.name}</h2>
-              <span className="text-[11px] text-green-500 font-bold">{activeChat.status}</span>
+                <h2 className="font-bold text-gray-800 dark:text-white leading-tight">{activeChat.name}</h2>
+                <span className="text-[11px] text-green-500 font-bold">{activeChat.status}</span>
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4 text-gray-500 dark:text-gray-400">
@@ -402,12 +401,20 @@ export default function ChatPage() {
         </header>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 bg-[#F8F9FB] dark:bg-slate-950 space-y-1">
-          {messages.filter(msg => activeChat.isGroup ? msg.groupId === activeChat.id : (msg.senderId === currentUser.uid && msg.receiverId === activeChat.id) || (msg.senderId === activeChat.id && msg.receiverId === currentUser.uid)).map((msg) => (
+          {messages
+            .filter((msg) => {
+                if (activeChat.isGroup) return msg.groupId === activeChat.id;
+                return (
+                    (msg.senderId === currentUser.uid && msg.receiverId === activeChat.id) ||
+                    (msg.senderId === activeChat.id && msg.receiverId === currentUser.uid)
+                );
+            })
+            .map((msg) => (
             <div key={msg.id} className="flex flex-col">
-              {activeChat.isGroup && !msg.isMe && (
-                <span className="text-[10px] text-blue-600 font-bold ml-12 mb-1 uppercase tracking-wider">{msg.senderName}</span>
-              )}
-              <ChatBubble message={msg} onReply={setReplyingTo} onActionMenu={setActiveMessage} />
+                {activeChat.isGroup && !msg.isMe && (
+                   <span className="text-[10px] text-blue-600 font-bold ml-12 mb-1 uppercase tracking-wider">{msg.senderName}</span>
+                )}
+                <ChatBubble message={msg} onReply={setReplyingTo} onActionMenu={setActiveMessage} />
             </div>
           ))}
           {isOtherUserTyping && <TypingIndicator username={activeChat.name} />}
@@ -415,9 +422,7 @@ export default function ChatPage() {
             <div className="flex justify-end mb-4">
               <div className="bg-blue-50 dark:bg-slate-800 p-3 rounded-2xl border dark:border-slate-700 w-48">
                 <div className="flex items-center gap-3 mb-2"><File size={16} className="text-blue-600 animate-pulse" /><span className="text-[10px] font-bold text-gray-500 uppercase">Uploading...</span></div>
-                <div className="h-1 w-full bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-600 transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
-                </div>
+                <div className="h-1 w-full bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden"><div className="h-full bg-blue-600 transition-all duration-300" style={{ width: `${uploadProgress}%` }} /></div>
               </div>
             </div>
           )}
