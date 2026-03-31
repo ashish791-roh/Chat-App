@@ -43,7 +43,7 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onC
     onClose(); // Close modal on success
     window.location.reload(); // Force a refresh to sync all components if not using a shared state
    } catch (error) {
-    console.error("Update failed:", error);
+     console.error("Update failed:", error);
     }
   };
 

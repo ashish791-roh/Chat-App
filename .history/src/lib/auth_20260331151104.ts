@@ -1,3 +1,4 @@
+//
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -44,33 +45,32 @@ export const signup = async (
   return formatUser(user);
 };
 
-// --- CORRECTED UPDATE FUNCTION ---
+// New function to handle updates
 export const updateUserProfile = async (uid: string, data: { name?: string; avatar?: string; bio?: string }) => {
   const user = auth.currentUser;
-  if (!user) throw new Error("No authenticated user found");
+  if (!user) return;
 
-  // 1. Update Firebase Auth (Session Data)
+  // Update Firebase Auth Profile
   await updateProfile(user, {
     displayName: data.name || user.displayName,
     photoURL: data.avatar || user.photoURL
   });
 
-  // 2. Update Firestore (Permanent Data)
+  // Update Firestore Document
   const userRef = doc(db, "users", uid);
   await updateDoc(userRef, {
     ...data,
     updatedAt: serverTimestamp()
   });
 
-  // 3. Update Local Storage (Immediate UI Sync)
+  // Update LocalStorage for immediate UI sync
   const stored = localStorage.getItem("blinkchat_user");
   if (stored) {
     const parsed = JSON.parse(stored);
     localStorage.setItem("blinkchat_user", JSON.stringify({
       ...parsed,
       displayName: data.name || parsed.displayName,
-      photoURL: data.avatar || parsed.photoURL,
-      bio: data.bio || parsed.bio
+      photoURL: data.avatar || parsed.photoURL
     }));
   }
 };
@@ -80,13 +80,10 @@ export const login = async (
   password: string
 ): Promise<AppUser> => {
   const { user } = await signInWithEmailAndPassword(auth, email, password);
-  // Ensure local storage is set on login
-  localStorage.setItem("blinkchat_user", JSON.stringify(formatUser(user)));
   return formatUser(user);
 };
 
 export const logout = async (): Promise<void> => {
-  localStorage.removeItem("blinkchat_user");
   await signOut(auth);
 };
 

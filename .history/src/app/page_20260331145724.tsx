@@ -29,7 +29,7 @@ function cn(...inputs: (string | false | null | undefined)[]): string {
 
 export default function ChatPage() {
   const router = useRouter();
-  const { user: authUser, loading } = useAuth(); // Reactively listen to user changes
+  const { user: authUser, loading } = useAuth(); // Global auth state for real-time updates
   
   // UI States
   const [input, setInput] = useState("");
@@ -48,7 +48,7 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Chat & Contact States (Preserving existing mock data)
+  // Chat & Contact States (Mock data preserved)
   const [friends] = useState([
     { uid: "other", displayName: "Shiwani" },
     { uid: "2", displayName: "Tanvi" },
@@ -76,10 +76,10 @@ export default function ChatPage() {
     }
   ]);
 
-  // Sync Auth State & Redirect
+  // Auth Redirection
   useEffect(() => {
     if (!loading && !authUser) {
-      router.push("/auth/login");
+      router.push("/auth/login"); 
     }
   }, [authUser, loading, router]);
 
@@ -104,7 +104,7 @@ export default function ChatPage() {
     };
   }, []);     
 
-  // Map authUser to your existing currentUser structure
+  // Derived Reactive Current User
   const currentUser = authUser ? {
     uid: authUser.id,
     displayName: authUser.name,
@@ -177,7 +177,7 @@ export default function ChatPage() {
         id: Date.now().toString(), 
         senderId: currentUser.uid, 
         senderName: currentUser.displayName, 
-        receiverId: !activeChat.isGroup ? activeChat.id : undefined,
+        receiverId: !activeChat.id ? activeChat.id : undefined,
         groupId: activeChat.isGroup ? activeChat.id : undefined,
         text: url, 
         timestamp: new Date().toISOString(), 
@@ -200,7 +200,6 @@ export default function ChatPage() {
     setActiveMessage(null);
   };
 
-  // Prevent UI rendering until auth is determined
   if (loading || !currentUser) {
     return <div className="h-screen w-full flex items-center justify-center bg-white dark:bg-slate-950 text-blue-600 font-bold">Loading BlinkChat...</div>;
   }
@@ -297,7 +296,7 @@ export default function ChatPage() {
           ))}
         </div>
 
-        {/* SIDEBAR FOOTER - Dynamically updates with authUser */}
+        {/* PROFILE FOOTER - NOW DYNAMIC */}
         <div className="p-4 border-t dark:border-slate-800 bg-white dark:bg-slate-900">
           <div onClick={() => setIsProfileOpen(true)} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer group">
             <div className="relative">
@@ -402,7 +401,7 @@ export default function ChatPage() {
   );
 }
 
-// Modal Component for Groups
+// Group Creation Modal
 const CreateGroupModal = ({ friends, currentUser, onClose, onCreate }: any) => {
     const [groupName, setGroupName] = useState('');
     const [selectedIds, setSelectedIds] = useState<string[]>([]);

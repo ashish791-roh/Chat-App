@@ -34,16 +34,19 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onC
   };
 
   const handleSave = async () => {
-  try {
-    await updateUserProfile(user.id, {
-      name: name,
-      avatar: photo, // This should be your base64 or URL string
-      bio: bio
-    });
-    onClose(); // Close modal on success
-    window.location.reload(); // Force a refresh to sync all components if not using a shared state
-   } catch (error) {
-    console.error("Update failed:", error);
+    if (!user) return;
+    setSaving(true);
+    try {
+      await updateUserProfile(user.id, {
+        name,
+        avatar: photo || "",
+        bio
+      });
+      onClose();
+    } catch (error) {
+      console.error("Failed to update profile:", error);
+    } finally {
+      setSaving(false);
     }
   };
 

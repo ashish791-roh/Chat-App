@@ -25,11 +25,7 @@ const formatUser = (firebaseUser: FirebaseUser): AppUser => ({
   bio: "",
 });
 
-export const signup = async (
-  name: string,
-  email: string,
-  password: string
-): Promise<AppUser> => {
+export const signup = async (name: string, email: string, password: string): Promise<AppUser> => {
   const { user } = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(user, { displayName: name });
   await setDoc(doc(db, "users", user.uid), {
@@ -44,25 +40,25 @@ export const signup = async (
   return formatUser(user);
 };
 
-// --- CORRECTED UPDATE FUNCTION ---
+// --- CRITICAL: Complete Update Function ---
 export const updateUserProfile = async (uid: string, data: { name?: string; avatar?: string; bio?: string }) => {
   const user = auth.currentUser;
   if (!user) throw new Error("No authenticated user found");
 
-  // 1. Update Firebase Auth (Session Data)
+  // 1. Update Firebase Auth Session
   await updateProfile(user, {
     displayName: data.name || user.displayName,
     photoURL: data.avatar || user.photoURL
   });
 
-  // 2. Update Firestore (Permanent Data)
+  // 2. Update Firestore
   const userRef = doc(db, "users", uid);
   await updateDoc(userRef, {
     ...data,
     updatedAt: serverTimestamp()
   });
 
-  // 3. Update Local Storage (Immediate UI Sync)
+  // 3. Sync LocalStorage for the home page useEffect
   const stored = localStorage.getItem("blinkchat_user");
   if (stored) {
     const parsed = JSON.parse(stored);
@@ -75,29 +71,16 @@ export const updateUserProfile = async (uid: string, data: { name?: string; avat
   }
 };
 
-export const login = async (
-  email: string,
-  password: string
-): Promise<AppUser> => {
+export const login = async (email: string, password: string): Promise<AppUser> => {
   const { user } = await signInWithEmailAndPassword(auth, email, password);
-  // Ensure local storage is set on login
-  localStorage.setItem("blinkchat_user", JSON.stringify(formatUser(user)));
   return formatUser(user);
 };
 
 export const logout = async (): Promise<void> => {
-  localStorage.removeItem("blinkchat_user");
   await signOut(auth);
 };
 
-export const getUserProfile = async (uid: string) => {
-  const snap = await getDoc(doc(db, "users", uid));
-  return snap.exists() ? (snap.data() as AppUser) : null;
-};
-
-export const subscribeToAuthState = (
-  callback: (user: AppUser | null) => void
-) => {
+export const subscribeToAuthState = (callback: (user: AppUser | null) => void) => {
   return onAuthStateChanged(auth, (firebaseUser) => {
     callback(firebaseUser ? formatUser(firebaseUser) : null);
   });

@@ -20,7 +20,7 @@ import TypingIndicator from "@/components/TypingIndicator";
 // Hooks & Libs
 import { Message } from "@/types";
 import { socket } from "@/lib/socket";
-import { useAuth } from "@/hooks/useAuth"; 
+import { useAuth } from "@/hooks/useAuth"; //
 
 // Helper for Tailwind classes
 function cn(...inputs: (string | false | null | undefined)[]): string {
@@ -29,7 +29,7 @@ function cn(...inputs: (string | false | null | undefined)[]): string {
 
 export default function ChatPage() {
   const router = useRouter();
-  const { user: authUser, loading } = useAuth(); // Reactively listen to user changes
+  const { user: authUser, loading } = useAuth(); // Listen to global auth state
   
   // UI States
   const [input, setInput] = useState("");
@@ -48,7 +48,7 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Chat & Contact States (Preserving existing mock data)
+  // Chat & Contact States (Mock data preserved as per your request)
   const [friends] = useState([
     { uid: "other", displayName: "Shiwani" },
     { uid: "2", displayName: "Tanvi" },
@@ -76,10 +76,10 @@ export default function ChatPage() {
     }
   ]);
 
-  // Sync Auth State & Redirect
+  // Sync Auth State
   useEffect(() => {
     if (!loading && !authUser) {
-      router.push("/auth/login");
+      router.push("/auth/login"); // Redirect if not logged in
     }
   }, [authUser, loading, router]);
 
@@ -104,7 +104,7 @@ export default function ChatPage() {
     };
   }, []);     
 
-  // Map authUser to your existing currentUser structure
+  // Derived Current User from Auth Context for reactivity
   const currentUser = authUser ? {
     uid: authUser.id,
     displayName: authUser.name,
@@ -200,7 +200,7 @@ export default function ChatPage() {
     setActiveMessage(null);
   };
 
-  // Prevent UI rendering until auth is determined
+  // Loading state prevents layout shift while auth is being verified
   if (loading || !currentUser) {
     return <div className="h-screen w-full flex items-center justify-center bg-white dark:bg-slate-950 text-blue-600 font-bold">Loading BlinkChat...</div>;
   }
@@ -297,7 +297,7 @@ export default function ChatPage() {
           ))}
         </div>
 
-        {/* SIDEBAR FOOTER - Dynamically updates with authUser */}
+        {/* PROFILE FOOTER - Updates automatically when Auth Context changes */}
         <div className="p-4 border-t dark:border-slate-800 bg-white dark:bg-slate-900">
           <div onClick={() => setIsProfileOpen(true)} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer group">
             <div className="relative">
