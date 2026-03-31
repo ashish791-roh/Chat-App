@@ -46,13 +46,6 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // User State
-  const [currentUser, setCurrentUser] = useState({
-    uid: "me",
-    displayName: "Ashish Rohilla",
-    profilePic: null 
-  });
-
   // Chat & Contact States
   const [friends] = useState([
     { uid: "other", displayName: "Shiwani" },
@@ -61,7 +54,7 @@ export default function ChatPage() {
   ]);
 
   const [chats, setChats] = useState([
-    { id: "other", name: "Shiwani", isGroup: false, lastMessage: "Welcome back!", status: "Active now" },
+    { id: "1", name: "Shiwani", isGroup: false, lastMessage: "Welcome back!", status: "Active now" },
     { id: "2", name: "Tanvi", isGroup: false, lastMessage: "See you at college!", status: "Offline" }
   ]);
 
@@ -73,7 +66,6 @@ export default function ChatPage() {
       id: "1", 
       senderId: "other", 
       senderName: "Shiwani",
-      receiverId: "me",
       text: "Welcome back! Try sending a file or long-pressing a message.", 
       timestamp: new Date().toISOString(), 
       isMe: false,
@@ -81,18 +73,11 @@ export default function ChatPage() {
     }
   ]);
 
-  // Sync User from LocalStorage
+  // FEATURE: Session Protection
   useEffect(() => {
     const user = localStorage.getItem("blinkchat_user");
     if (!user) {
       router.push("/auth/login");
-    } else {
-      const parsedUser = JSON.parse(user);
-      setCurrentUser({
-        uid: parsedUser.uid || "me",
-        displayName: parsedUser.displayName || "Ashish Rohilla",
-        profilePic: parsedUser.photoURL || null
-      });
     }
   }, [router]);
 
@@ -103,26 +88,21 @@ export default function ChatPage() {
     }
   }, [messages, showEmoji, showGif, replyingTo, uploadProgress, isOtherUserTyping]);
 
-  // Socket Listeners
   useEffect(() => {
     socket.on("group_created", (newGroup) => {
       setChats(prev => {
         if (prev.find(chat => chat.id === newGroup.id)) return prev;
         return [newGroup, ...prev];
-      });
-    });
+        });
 
-    return () => {
-      socket.off("group_created");
-    };
-  }, []);     
+        new Notification(`New Group: ${newGroup.name}`);
 
   const handleInputChange = (val: string) => {
     setInput(val);
     if (val.length > 0) {
-      socket.emit("typing", { user: currentUser.displayName, to: activeChat.id });
+      socket.emit("typing", { user: "Ashish" });
     } else {
-      socket.emit("stop_typing", { user: currentUser.displayName, to: activeChat.id });
+      socket.emit("stop_typing", { user: "Ashish" });
     }
   };
 
@@ -138,6 +118,7 @@ export default function ChatPage() {
     setChats(prev => [newGroup, ...prev]);
     setActiveChat(newGroup);
     setIsModalOpen(false);
+
     socket.emit("create_group", newGroup);
   };
 
@@ -147,10 +128,8 @@ export default function ChatPage() {
 
     const newMessage: Message = {
       id: Date.now().toString(),
-      senderId: currentUser.uid,
-      senderName: currentUser.displayName,
-      receiverId: !activeChat.isGroup ? activeChat.id : undefined,
-      groupId: activeChat.isGroup ? activeChat.id : undefined,
+      senderId: "me",
+      senderName: "Ashish",
       text: input,
       timestamp: new Date().toISOString(),
       isMe: true,
@@ -159,7 +138,7 @@ export default function ChatPage() {
     };
 
     setMessages((prev) => [...prev, newMessage]);
-    socket.emit("stop_typing", { user: currentUser.displayName, to: activeChat.id });
+    socket.emit("stop_typing", { user: "Ashish" });
     setInput("");
     setShowEmoji(false);
     setReplyingTo(null);
@@ -177,10 +156,8 @@ export default function ChatPage() {
         clearInterval(interval);
         const fileMessage: Message = {
           id: Date.now().toString(),
-          senderId: currentUser.uid,
-          senderName: currentUser.displayName,
-          receiverId: !activeChat.isGroup ? activeChat.id : undefined,
-          groupId: activeChat.isGroup ? activeChat.id : undefined,
+          senderId: "me",
+          senderName: "Ashish",
           text: file.type.startsWith('image/') ? URL.createObjectURL(file) : `📄 ${file.name}`,
           timestamp: new Date().toISOString(),
           isMe: true,
@@ -193,17 +170,7 @@ export default function ChatPage() {
   };
 
   const handleGifSend = (url: string) => {
-    const gifMessage: Message = { 
-        id: Date.now().toString(), 
-        senderId: currentUser.uid, 
-        senderName: currentUser.displayName, 
-        receiverId: !activeChat.isGroup ? activeChat.id : undefined,
-        groupId: activeChat.isGroup ? activeChat.id : undefined,
-        text: url, 
-        timestamp: new Date().toISOString(), 
-        isMe: true, 
-        status: 'sent' 
-    };
+    const gifMessage: Message = { id: Date.now().toString(), senderId: "me", senderName: "Ashish", text: url, timestamp: new Date().toISOString(), isMe: true, status: 'sent' };
     setMessages((prev) => [...prev, gifMessage]);
     setShowGif(false);
   };
@@ -224,18 +191,12 @@ export default function ChatPage() {
     <main className="flex h-screen bg-white dark:bg-slate-950 overflow-hidden text-gray-900 dark:text-gray-100 transition-colors relative">
       
       {/* OVERLAYS */}
-      <MediaSidebar 
-        isOpen={isMediaOpen} 
-        onClose={() => setIsMediaOpen(false)} 
-        messages={messages.filter(msg => 
-            activeChat.isGroup ? msg.groupId === activeChat.id : (msg.receiverId === activeChat.id || (msg.senderId === activeChat.id && msg.receiverId === "me"))
-        )} 
-      />
+      <MediaSidebar isOpen={isMediaOpen} onClose={() => setIsMediaOpen(false)} messages={messages} />
       <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
       {isModalOpen && (
         <CreateGroupModal 
             friends={friends} 
-            currentUser={currentUser} 
+            currentUser={{ uid: "me" }} 
             onClose={() => setIsModalOpen(false)} 
             onCreate={handleCreateGroup} 
         />
@@ -262,7 +223,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* SIDEBAR */}
+      {/* WHATSAPP-STYLE SIDEBAR */}
       <aside className="w-80 border-r border-gray-200 dark:border-slate-800 hidden md:flex flex-col bg-gray-50 dark:bg-slate-900/50">
         <div className="p-5 border-b dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
           <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold text-xl">
@@ -276,7 +237,7 @@ export default function ChatPage() {
 
         <div className="p-4 bg-white dark:bg-slate-900">
             <div className="relative">
-              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search chats" className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-slate-800 rounded-xl text-xs border-none focus:ring-2 ring-blue-500 outline-none transition-all" />
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search or start new chat" className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-slate-800 rounded-xl text-xs border-none focus:ring-2 ring-blue-500 outline-none transition-all" />
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             </div>
         </div>
@@ -308,28 +269,11 @@ export default function ChatPage() {
           ))}
         </div>
 
-        {/* PROFILE FOOTER - CORRECTED */}
         <div className="p-4 border-t dark:border-slate-800 bg-white dark:bg-slate-900">
-          <div onClick={() => setIsProfileOpen(true)} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer group">
-            <div className="relative">
-              {currentUser.profilePic ? (
-                <img 
-                  src={currentUser.profilePic} 
-                  className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm" 
-                  alt="Me" 
-                />
-              ) : (
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md">
-                  {currentUser.displayName.charAt(0)}
-                </div>
-              )}
-              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold truncate text-gray-800 dark:text-white">{currentUser.displayName}</div>
-              <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tight">Online</p>
-            </div>
-            <Settings size={14} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
+          <div onClick={() => setIsProfileOpen(true)} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer">
+             <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">A</div>
+             <div className="flex-1 text-xs font-bold">Ashish Rohilla</div>
+             <Settings size={14} className="text-gray-400" />
           </div>
         </div>
       </aside>
@@ -362,15 +306,7 @@ export default function ChatPage() {
         </header>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 bg-[#F8F9FB] dark:bg-slate-950 space-y-1">
-          {messages
-            .filter((msg) => {
-                if (activeChat.isGroup) return msg.groupId === activeChat.id;
-                return (
-                    (msg.senderId === currentUser.uid && msg.receiverId === activeChat.id) ||
-                    (msg.senderId === activeChat.id && msg.receiverId === currentUser.uid)
-                );
-            })
-            .map((msg) => (
+          {messages.map((msg) => (
             <div key={msg.id} className="flex flex-col">
                 {activeChat.isGroup && !msg.isMe && (
                    <span className="text-[10px] text-blue-600 font-bold ml-12 mb-1 uppercase tracking-wider">{msg.senderName}</span>
@@ -378,7 +314,7 @@ export default function ChatPage() {
                 <ChatBubble message={msg} onReply={setReplyingTo} onActionMenu={setActiveMessage} />
             </div>
           ))}
-          {isOtherUserTyping && <TypingIndicator username={activeChat.name} />}
+          {isOtherUserTyping && <TypingIndicator username="Shiwani" />}
           {uploadProgress !== null && (
             <div className="flex justify-end mb-4">
               <div className="bg-blue-50 dark:bg-slate-800 p-3 rounded-2xl border dark:border-slate-700 w-48">
@@ -394,7 +330,7 @@ export default function ChatPage() {
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
           {replyingTo && (
             <div className="max-w-4xl mx-auto mb-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-t-xl border-l-4 border-blue-600 flex justify-between items-center">
-              <div className="truncate pr-4"><p className="text-[10px] font-bold text-blue-600 uppercase">Replying to {replyingTo.senderName}</p><p className="text-xs text-gray-400 truncate">{replyingTo.text}</p></div>
+              <div className="truncate pr-4"><p className="text-[10px] font-bold text-blue-600 uppercase">Replying to {replyToName}</p><p className="text-xs text-gray-400 truncate">{replyingTo.text}</p></div>
               <button onClick={() => setReplyingTo(null)}><X size={18} /></button>
             </div>
           )}
@@ -413,7 +349,7 @@ export default function ChatPage() {
   );
 }
 
-// Modal Component
+// SUB-COMPONENT: CreateGroupModal
 const CreateGroupModal = ({ friends, currentUser, onClose, onCreate }: any) => {
     const [groupName, setGroupName] = useState('');
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -425,17 +361,27 @@ const CreateGroupModal = ({ friends, currentUser, onClose, onCreate }: any) => {
         <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl border dark:border-slate-800 animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
           <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Create Group</h2>
           <div className="space-y-4">
-            <div><label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Group Name</label><input type="text" placeholder="Enter group name..." className="w-full p-4 mt-1 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white rounded-2xl border dark:border-slate-700 focus:ring-2 ring-blue-500 outline-none" value={groupName} onChange={(e) => setGroupName(e.target.value)} /></div>
-            <div><label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Select Members</label><div className="mt-2 max-h-48 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+            <div>
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Group Name</label>
+                <input type="text" placeholder="Enter group name..." className="w-full p-4 mt-1 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white rounded-2xl border dark:border-slate-700 focus:ring-2 ring-blue-500 outline-none" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
+            </div>
+            <div>
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Select Members</label>
+                <div className="mt-2 max-h-48 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                     {friends.map((friend: any) => (
                     <div key={friend.uid} className={cn("flex items-center p-3 rounded-2xl cursor-pointer transition-all border", selectedIds.includes(friend.uid) ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500" : "bg-gray-50 dark:bg-slate-800 border-transparent hover:border-gray-300")} onClick={() => toggleMember(friend.uid)}>
                         <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold mr-3">{friend.displayName.charAt(0)}</div>
                         <span className="flex-1 text-sm font-medium">{friend.displayName}</span>
                         <div className={cn("w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center", selectedIds.includes(friend.uid) ? "bg-blue-600 border-blue-600" : "border-gray-400")}>{selectedIds.includes(friend.uid) && <X size={12} className="text-white rotate-45" />}</div>
-                    </div>))}
-                </div></div>
+                    </div>
+                    ))}
+                </div>
+            </div>
           </div>
-          <div className="flex gap-3 mt-8"><button onClick={onClose} className="flex-1 py-4 text-gray-500 font-bold hover:bg-gray-100 dark:hover:bg-slate-800 rounded-2xl transition-colors">Cancel</button><button onClick={handleSubmit} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 disabled:opacity-50 transition-all" disabled={!groupName || selectedIds.length === 0}>Create</button></div>
+          <div className="flex gap-3 mt-8">
+            <button onClick={onClose} className="flex-1 py-4 text-gray-500 font-bold hover:bg-gray-100 dark:hover:bg-slate-800 rounded-2xl transition-colors">Cancel</button>
+            <button onClick={handleSubmit} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 disabled:opacity-50 transition-all" disabled={!groupName || selectedIds.length === 0}>Create</button>
+          </div>
         </div>
       </div>
     );

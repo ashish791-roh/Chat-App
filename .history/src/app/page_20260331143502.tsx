@@ -46,11 +46,11 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // User State
+  // User State (Updated for Profile Picture)
   const [currentUser, setCurrentUser] = useState({
     uid: "me",
     displayName: "Ashish Rohilla",
-    profilePic: null 
+    profilePic: null // Set to a URL string to see the image
   });
 
   // Chat & Contact States
@@ -67,7 +67,7 @@ export default function ChatPage() {
 
   const [activeChat, setActiveChat] = useState(chats[0]);
 
-  // Message State
+  // Message State (Added IDs for filtering)
   const [messages, setMessages] = useState<Message[]>([
     { 
       id: "1", 
@@ -81,18 +81,11 @@ export default function ChatPage() {
     }
   ]);
 
-  // Sync User from LocalStorage
+  // FEATURE: Session Protection
   useEffect(() => {
     const user = localStorage.getItem("blinkchat_user");
     if (!user) {
       router.push("/auth/login");
-    } else {
-      const parsedUser = JSON.parse(user);
-      setCurrentUser({
-        uid: parsedUser.uid || "me",
-        displayName: parsedUser.displayName || "Ashish Rohilla",
-        profilePic: parsedUser.photoURL || null
-      });
     }
   }, [router]);
 
@@ -116,6 +109,18 @@ export default function ChatPage() {
       socket.off("group_created");
     };
   }, []);     
+
+  useEffect(() => {
+  const savedUser = localStorage.getItem("blinkchat_user");
+  if (savedUser) {
+    const parsedUser = JSON.parse(savedUser);
+    setCurrentUser({
+      uid: parsedUser.uid || "me",
+      displayName: parsedUser.displayName || "Ashish Rohilla",
+      profilePic: parsedUser.photoURL || null // Ensure your login/signup saves photoURL
+    });
+  }
+}, []);
 
   const handleInputChange = (val: string) => {
     setInput(val);
@@ -262,7 +267,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* SIDEBAR */}
+      {/* WHATSAPP-STYLE SIDEBAR */}
       <aside className="w-80 border-r border-gray-200 dark:border-slate-800 hidden md:flex flex-col bg-gray-50 dark:bg-slate-900/50">
         <div className="p-5 border-b dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
           <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold text-xl">
@@ -276,7 +281,7 @@ export default function ChatPage() {
 
         <div className="p-4 bg-white dark:bg-slate-900">
             <div className="relative">
-              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search chats" className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-slate-800 rounded-xl text-xs border-none focus:ring-2 ring-blue-500 outline-none transition-all" />
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search or start new chat" className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-slate-800 rounded-xl text-xs border-none focus:ring-2 ring-blue-500 outline-none transition-all" />
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             </div>
         </div>
@@ -308,30 +313,30 @@ export default function ChatPage() {
           ))}
         </div>
 
-        {/* PROFILE FOOTER - CORRECTED */}
-        <div className="p-4 border-t dark:border-slate-800 bg-white dark:bg-slate-900">
-          <div onClick={() => setIsProfileOpen(true)} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer group">
-            <div className="relative">
-              {currentUser.profilePic ? (
-                <img 
-                  src={currentUser.profilePic} 
-                  className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm" 
-                  alt="Me" 
-                />
-              ) : (
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md">
-                  {currentUser.displayName.charAt(0)}
-                </div>
-              )}
-              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
+        {/* UPDATED FOOTER WITH PROFILE PIC */}
+        <<di className="p-4 border-t dark:border-slate-800 bg-white dark:bg-slate-900">
+  <div onClick={() => setIsProfileOpen(true)} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer group">
+     <div className="relative">
+        {/* This is the key part that switches between Image and Initial */}
+        {currentUser.profilePic ? (
+            <img 
+              src={currentUser.profilePic} 
+              className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm" 
+              alt="Me" 
+            />
+        ) : (
+            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md">
+                {currentUser.displayName.charAt(0)}
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold truncate text-gray-800 dark:text-white">{currentUser.displayName}</div>
-              <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tight">Online</p>
-            </div>
-            <Settings size={14} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
-          </div>
-        </div>
+        )}
+        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
+     </div>
+     <div className="flex-1 min-w-0">
+        <div className="text-xs font-bold truncate text-gray-800 dark:text-white">{currentUser.displayName}</div>
+        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tight">Online</p>
+     </div>
+     <Settings size={14} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
+  </div>
       </aside>
 
       {/* CHAT MAIN */}
@@ -361,6 +366,7 @@ export default function ChatPage() {
           </div>
         </header>
 
+        {/* MESSAGES WITH CORRECT FILTERING */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 bg-[#F8F9FB] dark:bg-slate-950 space-y-1">
           {messages
             .filter((msg) => {
