@@ -69,6 +69,7 @@ export const signup = async (
   return formatUser(user);
 };
 
+
 export const login = async (
   email: string,
   password: string

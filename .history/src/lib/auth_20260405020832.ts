@@ -36,29 +36,20 @@ const formatUser = (firebaseUser: FirebaseUser): AppUser => ({
   bio: "",
 });
 
-export const isUsernameAvailable = async (username: string): Promise<boolean> => {
-  const q = query(
-    collection(db, "users"),
-    where("username", "==", username.toLowerCase().trim())
-  );
-  const snap = await getDocs(q);
-  return snap.empty;
-};
 
 export const signup = async (
   name: string,
   email: string,
-  password: string,
-  username: string          // ← add param
+  password: string
 ): Promise<AppUser> => {
   const { user } = await createUserWithEmailAndPassword(auth, email, password);
+
   await updateProfile(user, { displayName: name });
 
   await setDoc(doc(db, "users", user.uid), {
     id: user.uid,
     name,
     email,
-    username: username.toLowerCase().trim(),   // ← save it
     avatar: "",
     bio: "",
     isOnline: true,

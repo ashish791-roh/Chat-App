@@ -1,5 +1,3 @@
-import { collection, query, where, getDocs } from "firebase/firestore";
-
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -15,7 +13,6 @@ import {
   getDoc,
   updateDoc,
   serverTimestamp,
-  onSnapshot,
 } from "firebase/firestore";
 
 import { auth, db } from "./firebase";
@@ -28,6 +25,7 @@ export interface AppUser {
   bio: string;
 }
 
+// 🔹 Format Firebase user → App user
 const formatUser = (firebaseUser: FirebaseUser): AppUser => ({
   id: firebaseUser.uid,
   name: firebaseUser.displayName || "Unknown",
@@ -36,71 +34,73 @@ const formatUser = (firebaseUser: FirebaseUser): AppUser => ({
   bio: "",
 });
 
-export const isUsernameAvailable = async (username: string): Promise<boolean> => {
-  const q = query(
-    collection(db, "users"),
-    where("username", "==", username.toLowerCase().trim())
-  );
-  const snap = await getDocs(q);
-  return snap.empty;
-};
-
+// ================= SIGNUP =================
 export const signup = async (
   name: string,
   email: string,
-  password: string,
-  username: string          // ← add param
+  password: string
 ): Promise<AppUser> => {
-  const { user } = await createUserWithEmailAndPassword(auth, email, password);
+  const { user } = await createUserWithEmailAndPassword(
+    auth,
+    email,
+    password
+  );
+
+  // Update Firebase Auth profile
   await updateProfile(user, { displayName: name });
 
+  // Create Firestore user
   await setDoc(doc(db, "users", user.uid), {
     id: user.uid,
     name,
     email,
-    username: username.toLowerCase().trim(),   // ← save it
     avatar: "",
     bio: "",
     isOnline: true,
-    lastSeen: serverTimestamp(),
     createdAt: serverTimestamp(),
   });
+
+  // Save to localStorage
+  localStorage.setItem(
+    "blinkchat_user",
+    JSON.stringify(formatUser(user))
+  );
 
   return formatUser(user);
 };
 
+// ================= LOGIN =================
 export const login = async (
   email: string,
   password: string
 ): Promise<AppUser> => {
-  const { user } = await signInWithEmailAndPassword(auth, email, password);
+  const { user } = await signInWithEmailAndPassword(
+    auth,
+    email,
+    password
+  );
 
-  // 🟢 Mark online
-  await updateDoc(doc(db, "users", user.uid), {
-    isOnline: true,
-    lastSeen: serverTimestamp(),
-  });
+  const formatted = formatUser(user);
 
-  localStorage.setItem("blinkchat_user", JSON.stringify(formatUser(user)));
+  // Save to localStorage
+  localStorage.setItem("blinkchat_user", JSON.stringify(formatted));
 
-  return formatUser(user);
+  return formatted;
 };
 
+// ================= LOGOUT =================
 export const logout = async (): Promise<void> => {
-  const user = auth.currentUser;
-
-  if (user) {
-    await updateDoc(doc(db, "users", user.uid), {
-      isOnline: false,
-      lastSeen: serverTimestamp(),
-    });
-  }
-
   localStorage.removeItem("blinkchat_user");
   await signOut(auth);
 };
 
-// ✅ FIXED: Safe profile update (with avatar limit protection)
+// ================= GET USER =================
+export const getUserProfile = async (uid: string) => {
+  const snap = await getDoc(doc(db, "users", uid));
+  return snap.exists() ? (snap.data() as AppUser) : null;
+};
+
+// ================= UPDATE PROFILE =================
 export const updateUserProfile = async (
   uid: string,
   data: { name?: string; avatar?: string; bio?: string }
@@ -108,47 +108,51 @@ export const updateUserProfile = async (
   const user = auth.currentUser;
   if (!user) throw new Error("No authenticated user found");
 
-  const safeAvatar =
-    data.avatar && data.avatar.length < 1000 ? data.avatar : undefined;
+  // 🔥 FIX: prevent long photoURL crash
+  const safePhotoURL =
+    data.avatar && data.avatar.length < 1000
+      ? data.avatar
+      : user.photoURL;
 
+  // 1️⃣ Update Firebase Auth (SAFE)
   await updateProfile(user, {
     displayName: data.name || user.displayName,
-    photoURL: safeAvatar || user.photoURL,
+    photoURL: safePhotoURL || null,
   });
 
+  // 2️⃣ Update Firestore (MERGE SAFE)
   const userRef = doc(db, "users", uid);
 
   await setDoc(
     userRef,
     {
-      ...data,
-      avatar: safeAvatar || "",
+      ...(data.name && { name: data.name }),
+      ...(data.avatar && { avatar: data.avatar }), // full image allowed here
+      ...(data.bio && { bio: data.bio }),
       updatedAt: serverTimestamp(),
     },
     { merge: true }
   );
 
+  // 3️⃣ Update localStorage (UI sync)
   const stored = localStorage.getItem("blinkchat_user");
+
   if (stored) {
     const parsed = JSON.parse(stored);
+
     localStorage.setItem(
       "blinkchat_user",
       JSON.stringify({
         ...parsed,
         name: data.name || parsed.name,
-        avatar: safeAvatar || parsed.avatar,
+        avatar: data.avatar || parsed.avatar,
         bio: data.bio || parsed.bio,
       })
     );
   }
 };
 
-export const getUserProfile = async (uid: string) => {
-  const snap = await getDoc(doc(db, "users", uid));
-  return snap.exists() ? (snap.data() as AppUser) : null;
-};
-
-// ✅ UPDATED: Auth + online sync
+// ================= AUTH STATE =================
 export const subscribeToAuthState = (
   callback: (user: AppUser | null) => void
 ) => {
@@ -156,6 +160,7 @@ export const subscribeToAuthState = (
     if (firebaseUser) {
       const userRef = doc(db, "users", firebaseUser.uid);
 
+      // 🟢 Set user ONLINE
       await setDoc(
         userRef,
         {
@@ -168,20 +173,6 @@ export const subscribeToAuthState = (
       callback(formatUser(firebaseUser));
     } else {
       callback(null);
-    }
-  });
-};
-
-// ✅ NEW: Real-time user status listener
-export const subscribeToUserStatus = (
-  uid: string,
-  callback: (data: any) => void
-) => {
-  const ref = doc(db, "users", uid);
-
-  return onSnapshot(ref, (snap) => {
-    if (snap.exists()) {
-      callback(snap.data());
     }
   });
 };

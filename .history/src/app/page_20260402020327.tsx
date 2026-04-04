@@ -1,0 +1,985 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  Send, Users, Phone, Video, X, Trash2,
+  Reply, Settings, Search, UserPlus, Paperclip, File,
+  Smile, Gift, MoreVertical
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+
+// Components
+import ChatBubble from "@/components/ChatBubble";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import ChatEmojiPicker from "@/components/EmojiPicker";
+import GifPicker from "@/components/GifPicker";
+import ProfileModal from "@/components/ProfileModal";
+import MediaSidebar from "@/components/MediaSidebar";
+import TypingIndicator from "@/components/TypingIndicator";
+
+// Hooks & Libs
+import { Message } from "@/types";
+import { socket } from "@/lib/socket";
+import { useAuth } from "@/hooks/useAuth";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Chat {
+  id: string;
+  name: string;
+  isGroup: boolean;
+  lastMessage: string;
+  status: string;
+  isOnline?: boolean;
+}
+
+interface Friend {
+  uid: string;
+  displayName: string;
+  isOnline?: boolean;
+}
+
+interface OnlineStatusMap {
+  [userId: string]: boolean;
+}
+
+// ─── Helper ───────────────────────────────────────────────────────────────────
+
+function cn(...inputs: (string | false | null | undefined)[]): string {
+  return inputs.filter(Boolean).join(" ");
+}
+
+// ─── CreateGroupModal (stable – defined outside ChatPage) ─────────────────────
+
+const CreateGroupModal = ({
+  friends,
+  currentUser,
+  onClose,
+  onCreate,
+}: {
+  friends: Friend[];
+  currentUser: { uid: string; displayName: string };
+  onClose: () => void;
+  onCreate: (data: { name: string; members: string[] }) => void;
+}) => {
+  const [groupName, setGroupName] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  const toggleMember = (id: string) =>
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+
+  const handleSubmit = () => {
+    if (!groupName.trim() || selectedIds.length === 0) return;
+    onCreate({ name: groupName.trim(), members: [...selectedIds, currentUser.uid] });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl border dark:border-slate-800 animate-in zoom-in-95"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">
+          Create Group
+        </h2>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">
+              Group Name
+            </label>
+            <input
+              type="text"
+              placeholder="Enter group name..."
+              className="w-full p-4 mt-1 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white rounded-2xl border dark:border-slate-700 focus:ring-2 ring-blue-500 outline-none"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">
+              Select Members
+            </label>
+            <div className="mt-2 max-h-48 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+              {friends.map((friend) => (
+                <div
+                  key={friend.uid}
+                  className={cn(
+                    "flex items-center p-3 rounded-2xl cursor-pointer transition-all border",
+                    selectedIds.includes(friend.uid)
+                      ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500"
+                      : "bg-gray-50 dark:bg-slate-800 border-transparent hover:border-gray-300"
+                  )}
+                  onClick={() => toggleMember(friend.uid)}
+                >
+                  <div className="relative w-8 h-8 mr-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+                      {friend.displayName.charAt(0)}
+                    </div>
+                    {/* Real-time online indicator in group modal */}
+                    {friend.isOnline && (
+                      <span className="absolute bottom-0 right-0 w-2 h-2 bg-green-500 border border-white dark:border-slate-900 rounded-full" />
+                    )}
+                  </div>
+                  <span className="flex-1 text-sm font-medium">{friend.displayName}</span>
+                  <div
+                    className={cn(
+                      "w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center",
+                      selectedIds.includes(friend.uid)
+                        ? "bg-blue-600 border-blue-600"
+                        : "border-gray-400"
+                    )}
+                  >
+                    {selectedIds.includes(friend.uid) && (
+                      <X size={12} className="text-white rotate-45" />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-3 mt-8">
+          <button
+            onClick={onClose}
+            className="flex-1 py-4 text-gray-500 font-bold hover:bg-gray-100 dark:hover:bg-slate-800 rounded-2xl transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!groupName.trim() || selectedIds.length === 0}
+            className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 disabled:opacity-50 transition-all"
+          >
+            Create
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── ChatPage ─────────────────────────────────────────────────────────────────
+
+export default function ChatPage() {
+  const router = useRouter();
+  const { user: authUser, loading } = useAuth();
+
+  // ── UI States ──────────────────────────────────────────────────────────────
+  const [input, setInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [activeMessage, setActiveMessage] = useState<Message | null>(null);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isMediaOpen, setIsMediaOpen] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [showGif, setShowGif] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // ── Real-time States ───────────────────────────────────────────────────────
+  const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+
+  // ✅ NEW: Online/offline status map — keyed by userId
+  const [onlineStatusMap, setOnlineStatusMap] = useState<OnlineStatusMap>({});
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Static Data (replace with DB calls as needed) ─────────────────────────
+  const [friends, setFriends] = useState<Friend[]>([
+    { uid: "other", displayName: "Shiwani" },
+    { uid: "2", displayName: "Tanvi" },
+    { uid: "3", displayName: "Aman" },
+  ]);
+
+  const [chats, setChats] = useState<Chat[]>([
+    {
+      id: "other",
+      name: "Shiwani",
+      isGroup: false,
+      lastMessage: "Welcome back!",
+      status: "Active now",
+      isOnline: false,
+    },
+    {
+      id: "2",
+      name: "Tanvi",
+      isGroup: false,
+      lastMessage: "See you at college!",
+      status: "Offline",
+      isOnline: false,
+    },
+  ]);
+
+  const [activeChat, setActiveChat] = useState<Chat>(chats[0]);
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "1",
+      senderId: "other",
+      senderName: "Shiwani",
+      receiverId: "me",
+      text: "Welcome back! Try sending a file or long-pressing a message.",
+      timestamp: new Date().toISOString(),
+      isMe: false,
+      status: "read",
+    },
+  ]);
+
+  // ── Derived values ─────────────────────────────────────────────────────────
+  const currentUser = authUser
+    ? {
+        uid: authUser.id,
+        displayName: authUser.name,
+        // ✅ SAFE: only read profilePic if it exists on the auth user object
+        profilePic: (authUser as any).avatar ?? (authUser as any).profilePic ?? null,
+      }
+    : null;
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /**
+   * ✅ Centralised status updater — keeps chats, friends, and activeChat in sync.
+   * This prevents stale closures from causing partial updates.
+   */
+  const applyOnlineStatus = useCallback((userId: string, isOnline: boolean) => {
+    setOnlineStatusMap((prev) => ({ ...prev, [userId]: isOnline }));
+
+    setFriends((prev) =>
+      prev.map((f) => (f.uid === userId ? { ...f, isOnline } : f))
+    );
+
+    setChats((prev) =>
+      prev.map((c) =>
+        c.id === userId && !c.isGroup
+          ? { ...c, isOnline, status: isOnline ? "Active now" : "Offline" }
+          : c
+      )
+    );
+
+    // ✅ Keep activeChat in sync without triggering a full re-render via setActiveChat
+    setActiveChat((prev) =>
+      prev.id === userId && !prev.isGroup
+        ? { ...prev, isOnline, status: isOnline ? "Active now" : "Offline" }
+        : prev
+    );
+  }, []);
+
+  // ── Auth Guard ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!loading && !authUser) {
+      router.replace("/auth/login");
+    }
+  }, [authUser, loading, router]);
+
+  // ── Auto-scroll ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, showEmoji, showGif, replyingTo, uploadProgress, isOtherUserTyping]);
+
+  // ── Socket: connect + broadcast own presence ───────────────────────────────
+  useEffect(() => {
+    if (!currentUser) return;
+
+    if (!socket.connected) socket.connect();
+
+    // ✅ Tell server this user is online
+    socket.emit("user_online", { userId: currentUser.uid });
+
+    // ✅ Request current online statuses of all friends on connect
+    socket.emit("get_online_users", {
+      userIds: friends.map((f) => f.uid),
+    });
+
+    // Clean up: broadcast offline before unmount
+    return () => {
+      socket.emit("user_offline", { userId: currentUser.uid });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.uid]);
+
+  // ── Socket: real-time event listeners ─────────────────────────────────────
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // ── Group creation ──────────────────────────────────────────────────────
+    const handleGroupCreated = (newGroup: Chat) => {
+      setChats((prev) => {
+        if (prev.find((c) => c.id === newGroup.id)) return prev;
+        return [newGroup, ...prev];
+      });
+    };
+
+    // ── Typing indicators ───────────────────────────────────────────────────
+    const handleTyping = (data: { from: string; to: string }) => {
+      if (data.to === currentUser.uid || data.to === activeChat.id) {
+        setIsOtherUserTyping(true);
+      }
+    };
+
+    const handleStopTyping = (data: { from: string; to: string }) => {
+      if (data.to === currentUser.uid || data.to === activeChat.id) {
+        setIsOtherUserTyping(false);
+      }
+    };
+
+    // ✅ Real-time: a specific user came online
+    const handleUserOnline = (data: { userId: string }) => {
+      applyOnlineStatus(data.userId, true);
+    };
+
+    // ✅ Real-time: a specific user went offline
+    const handleUserOffline = (data: { userId: string }) => {
+      applyOnlineStatus(data.userId, false);
+    };
+
+    // ✅ Bulk status sync on reconnect / page load
+    const handleOnlineUsers = (data: { onlineUserIds: string[] }) => {
+      const onlineSet = new Set(data.onlineUserIds);
+      friends.forEach((f) => {
+        applyOnlineStatus(f.uid, onlineSet.has(f.uid));
+      });
+    };
+
+    // ✅ Safe profile update — only update display fields, never uid/auth data
+    const handleProfileUpdated = (data: {
+      userId: string;
+      displayName?: string;
+      avatar?: string;
+    }) => {
+      if (!data.userId) return;
+
+      setFriends((prev) =>
+        prev.map((f) =>
+          f.uid === data.userId
+            ? { ...f, ...(data.displayName ? { displayName: data.displayName } : {}) }
+            : f
+        )
+      );
+
+      setChats((prev) =>
+        prev.map((c) =>
+          c.id === data.userId && !c.isGroup
+            ? { ...c, ...(data.displayName ? { name: data.displayName } : {}) }
+            : c
+        )
+      );
+
+      setActiveChat((prev) =>
+        prev.id === data.userId && !prev.isGroup
+          ? { ...prev, ...(data.displayName ? { name: data.displayName } : {}) }
+          : prev
+      );
+
+      // Update sender names in existing messages
+      if (data.displayName) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.senderId === data.userId ? { ...m, senderName: data.displayName! } : m
+          )
+        );
+      }
+    };
+
+    // ✅ Incoming message from another user (cross-user sync)
+    const handleReceiveMessage = (msg: Message) => {
+      setMessages((prev) => {
+        // Deduplicate by id
+        if (prev.find((m) => m.id === msg.id)) return prev;
+        return [...prev, { ...msg, isMe: false }];
+      });
+
+      // Update last message preview in sidebar
+      const senderId = msg.groupId ?? msg.senderId;
+      setChats((prev) =>
+        prev.map((c) =>
+          c.id === senderId ? { ...c, lastMessage: msg.text ?? "📎 Attachment" } : c
+        )
+      );
+    };
+
+    // Register listeners
+    socket.on("group_created", handleGroupCreated);
+    socket.on("typing", handleTyping);
+    socket.on("stop_typing", handleStopTyping);
+    socket.on("user_online", handleUserOnline);
+    socket.on("user_offline", handleUserOffline);
+    socket.on("online_users", handleOnlineUsers);
+    socket.on("profile_updated", handleProfileUpdated);
+    socket.on("receive_message", handleReceiveMessage);
+
+    return () => {
+      socket.off("group_created", handleGroupCreated);
+      socket.off("typing", handleTyping);
+      socket.off("stop_typing", handleStopTyping);
+      socket.off("user_online", handleUserOnline);
+      socket.off("user_offline", handleUserOffline);
+      socket.off("online_users", handleOnlineUsers);
+      socket.off("profile_updated", handleProfileUpdated);
+      socket.off("receive_message", handleReceiveMessage);
+    };
+  }, [currentUser, activeChat.id, friends, applyOnlineStatus]);
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
+  const handleInputChange = (val: string) => {
+    setInput(val);
+    if (!currentUser) return;
+
+    if (val.length > 0) {
+      socket.emit("typing", { from: currentUser.uid, to: activeChat.id });
+
+      // ✅ Auto stop-typing after 2 s of inactivity
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        socket.emit("stop_typing", { from: currentUser.uid, to: activeChat.id });
+      }, 2000);
+    } else {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      socket.emit("stop_typing", { from: currentUser.uid, to: activeChat.id });
+    }
+  };
+
+  const handleSendMessage = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!input.trim() || !currentUser) return;
+
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      senderId: currentUser.uid,
+      senderName: currentUser.displayName,
+      receiverId: !activeChat.isGroup ? activeChat.id : undefined,
+      groupId: activeChat.isGroup ? activeChat.id : undefined,
+      text: input.trim(),
+      timestamp: new Date().toISOString(),
+      isMe: true,
+      status: "sent",
+      replyTo: replyingTo
+        ? { id: replyingTo.id, text: replyingTo.text, senderName: replyingTo.senderName }
+        : undefined,
+    };
+
+    setMessages((prev) => [...prev, newMessage]);
+
+    // ✅ Emit to server so recipient receives it via "receive_message"
+    socket.emit("send_message", newMessage);
+
+    // Update sidebar last message
+    setChats((prev) =>
+      prev.map((c) =>
+        c.id === activeChat.id ? { ...c, lastMessage: newMessage.text ?? "" } : c
+      )
+    );
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    socket.emit("stop_typing", { from: currentUser.uid, to: activeChat.id });
+    setInput("");
+    setShowEmoji(false);
+    setReplyingTo(null);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+
+    setUploadProgress(0);
+    let progress = 0;
+
+    const interval = setInterval(() => {
+      progress += 20;
+      setUploadProgress(progress);
+
+      if (progress >= 100) {
+        clearInterval(interval);
+
+        const isImage = file.type.startsWith("image/");
+        const fileMessage: Message = {
+          id: Date.now().toString(),
+          senderId: currentUser.uid,
+          senderName: currentUser.displayName,
+          receiverId: !activeChat.isGroup ? activeChat.id : undefined,
+          groupId: activeChat.isGroup ? activeChat.id : undefined,
+          text: isImage ? URL.createObjectURL(file) : `📄 ${file.name}`,
+          timestamp: new Date().toISOString(),
+          isMe: true,
+          status: "sent",
+        };
+
+        setMessages((prev) => [...prev, fileMessage]);
+        socket.emit("send_message", fileMessage);
+        setUploadProgress(null);
+      }
+    }, 150);
+  };
+
+  const handleGifSend = (url: string) => {
+    if (!currentUser) return;
+
+    const gifMessage: Message = {
+      id: Date.now().toString(),
+      senderId: currentUser.uid,
+      senderName: currentUser.displayName,
+      receiverId: !activeChat.isGroup ? activeChat.id : undefined,
+      groupId: activeChat.isGroup ? activeChat.id : undefined,
+      text: url,
+      timestamp: new Date().toISOString(),
+      isMe: true,
+      status: "sent",
+    };
+
+    setMessages((prev) => [...prev, gifMessage]);
+    socket.emit("send_message", gifMessage);
+    setShowGif(false);
+  };
+
+  const handleReaction = (emoji: string) => {
+    if (!activeMessage) return;
+
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== activeMessage.id) return m;
+        const current = m.reactions ?? {};
+        const users = current[emoji] ?? [];
+        const updated = {
+          ...current,
+          [emoji]: users.includes("me")
+            ? users.filter((u) => u !== "me")
+            : [...users, "me"],
+        };
+        return { ...m, reactions: updated };
+      })
+    );
+
+    setActiveMessage(null);
+  };
+
+  // ── Filtered messages for active chat ──────────────────────────────────────
+  const filteredMessages = messages.filter((msg) =>
+    activeChat.isGroup
+      ? msg.groupId === activeChat.id
+      : (msg.senderId === currentUser?.uid && msg.receiverId === activeChat.id) ||
+        (msg.senderId === activeChat.id && msg.receiverId === currentUser?.uid)
+  );
+
+  // ── Online status helpers ──────────────────────────────────────────────────
+  const isChatOnline = (chatId: string) => !!onlineStatusMap[chatId];
+
+  const activeChatIsOnline = !activeChat.isGroup && isChatOnline(activeChat.id);
+  const activeChatStatus = activeChat.isGroup
+    ? activeChat.status
+    : activeChatIsOnline
+    ? "Active now"
+    : "Offline";
+
+  // ── Filtered chats by search ───────────────────────────────────────────────
+  const filteredChats = chats.filter((c) =>
+    c.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // ── Loading guard ──────────────────────────────────────────────────────────
+  if (loading || !currentUser) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-white dark:bg-slate-950 text-blue-600 font-bold">
+        Loading BlinkChat...
+      </div>
+    );
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return (
+    <main className="flex h-screen bg-white dark:bg-slate-950 overflow-hidden text-gray-900 dark:text-gray-100 transition-colors relative">
+      <MediaSidebar
+        isOpen={isMediaOpen}
+        onClose={() => setIsMediaOpen(false)}
+        messages={filteredMessages}
+      />
+
+      <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+
+      {isModalOpen && (
+        <CreateGroupModal
+          friends={friends}
+          currentUser={currentUser}
+          onClose={() => setIsModalOpen(false)}
+          onCreate={(groupData) => {
+            const newGroup: Chat = {
+              id: Date.now().toString(),
+              name: groupData.name,
+              isGroup: true,
+              lastMessage: "Group created",
+              status: "Active",
+            };
+            setChats((prev) => [newGroup, ...prev]);
+            socket.emit("create_group", { ...newGroup, members: groupData.members });
+            setIsModalOpen(false);
+          }}
+        />
+      )}
+
+      {/* ── Message Action Menu ── */}
+      {activeMessage && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4"
+          onClick={() => setActiveMessage(null)}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 rounded-[2.5rem] w-full max-w-xs overflow-hidden shadow-2xl animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-around items-center p-5 bg-gray-50/50 dark:bg-slate-800/50 border-b dark:border-slate-800">
+              {["❤️", "👍", "😂", "😮", "😢", "🔥"].map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={() => handleReaction(emoji)}
+                  className="text-2xl hover:scale-125 transition-transform active:scale-90"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+            <div className="p-3 space-y-1">
+              <button
+                onClick={() => {
+                  setReplyingTo(activeMessage);
+                  setActiveMessage(null);
+                }}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-700 dark:text-gray-300"
+              >
+                <Reply size={18} className="text-blue-600" />
+                <span className="font-semibold">Reply</span>
+              </button>
+              <button
+                onClick={() => {
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === activeMessage.id ? { ...m, isDeleted: true } : m
+                    )
+                  );
+                  setActiveMessage(null);
+                }}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600"
+              >
+                <Trash2 size={18} />
+                <span className="font-semibold">Delete for everyone</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sidebar ── */}
+      <aside className="w-80 border-r border-gray-200 dark:border-slate-800 hidden md:flex flex-col bg-gray-50 dark:bg-slate-900/50">
+        <div className="p-5 border-b dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
+          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold text-xl">
+            <Users size={20} className="bg-blue-600 p-1.5 rounded-lg text-white" />
+            BlinkChat
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="p-2 text-gray-500 hover:text-blue-600 rounded-full transition-all"
+              title="Create Group"
+            >
+              <UserPlus size={20} />
+            </button>
+            <ThemeToggle />
+          </div>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900">
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search chats"
+              className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-slate-800 rounded-xl text-xs border-none focus:ring-2 ring-blue-500 outline-none transition-all"
+            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-1 bg-white dark:bg-slate-900">
+          {filteredChats.map((chat) => {
+            const online = !chat.isGroup && isChatOnline(chat.id);
+            return (
+              <div
+                key={chat.id}
+                onClick={() => setActiveChat(chat)}
+                className={cn(
+                  "flex items-center gap-3 p-4 cursor-pointer transition-all border-l-4",
+                  activeChat.id === chat.id
+                    ? "bg-blue-50 dark:bg-slate-800 border-blue-600"
+                    : "hover:bg-gray-50 dark:hover:bg-slate-800/50 border-transparent"
+                )}
+              >
+                <div className="relative">
+                  <div
+                    className={cn(
+                      "w-12 h-12 rounded-full flex items-center justify-center text-white font-bold shadow-sm",
+                      chat.isGroup
+                        ? "bg-gradient-to-br from-orange-400 to-rose-500"
+                        : "bg-blue-600"
+                    )}
+                  >
+                    {chat.isGroup ? <Users size={20} /> : chat.name.charAt(0)}
+                  </div>
+                  {/* ✅ Real-time online dot */}
+                  {!chat.isGroup && (
+                    <span
+                      className={cn(
+                        "absolute bottom-0 right-0 w-3 h-3 border-2 border-white dark:border-slate-900 rounded-full transition-colors",
+                        online ? "bg-green-500" : "bg-gray-400"
+                      )}
+                    />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-sm font-bold truncate">{chat.name}</h3>
+                    <span className="text-[10px] text-gray-400">12:45</span>
+                  </div>
+                  <p className="text-xs text-gray-500 truncate">{chat.lastMessage}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Current User ── */}
+        <div className="p-4 border-t dark:border-slate-800 bg-white dark:bg-slate-900">
+          <div
+            onClick={() => setIsProfileOpen(true)}
+            className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer group"
+          >
+            <div className="relative">
+              {currentUser.profilePic ? (
+                <img
+                  src={currentUser.profilePic}
+                  className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm"
+                  alt="Me"
+                  onError={(e) => {
+                    // ✅ Safe fallback — never crashes if profilePic URL is invalid
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              ) : (
+                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md">
+                  {currentUser.displayName.charAt(0)}
+                </div>
+              )}
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-bold truncate text-gray-800 dark:text-white">
+                {currentUser.displayName}
+              </div>
+              <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tight">Online</p>
+            </div>
+            <Settings size={14} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Chat Panel ── */}
+      <section className="flex-1 flex flex-col h-full bg-white dark:bg-slate-950 relative">
+        {/* Header */}
+        <header className="h-[73px] px-4 md:px-6 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-20">
+          <div
+            className="flex items-center gap-3 cursor-pointer"
+            onClick={() => setIsMediaOpen(true)}
+          >
+            <div className="relative">
+              <div
+                className={cn(
+                  "w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-md",
+                  activeChat.isGroup
+                    ? "bg-gradient-to-tr from-orange-400 to-rose-500"
+                    : "bg-blue-600"
+                )}
+              >
+                {activeChat.isGroup ? <Users size={18} /> : activeChat.name.charAt(0)}
+              </div>
+              {/* ✅ Header online dot reflects live status */}
+              {!activeChat.isGroup && (
+                <span
+                  className={cn(
+                    "absolute bottom-0 right-0 w-3 h-3 border-2 border-white dark:border-slate-800 rounded-full transition-colors",
+                    activeChatIsOnline ? "bg-green-500" : "bg-gray-400"
+                  )}
+                />
+              )}
+            </div>
+            <div>
+              <h2 className="font-bold text-gray-800 dark:text-white leading-tight">
+                {activeChat.name}
+              </h2>
+              <span
+                className={cn(
+                  "text-[11px] font-bold",
+                  activeChatIsOnline ? "text-green-500" : "text-gray-400"
+                )}
+              >
+                {activeChatStatus}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 md:gap-4 text-gray-500 dark:text-gray-400">
+            <button className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+              <Video size={20} />
+            </button>
+            <button className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+              <Phone size={20} />
+            </button>
+            <div className="w-[1px] h-6 bg-gray-200 dark:bg-slate-800 mx-1 hidden md:block" />
+            <button className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+              <Search size={20} />
+            </button>
+            <button
+              onClick={() => setIsMediaOpen(true)}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+            >
+              <MoreVertical size={20} />
+            </button>
+          </div>
+        </header>
+
+        {/* Messages */}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto p-6 bg-[#F8F9FB] dark:bg-slate-950 space-y-1"
+        >
+          {filteredMessages.map((msg) => (
+            <div key={msg.id} className="flex flex-col">
+              {activeChat.isGroup && !msg.isMe && (
+                <span className="text-[10px] text-blue-600 font-bold ml-12 mb-1 uppercase tracking-wider">
+                  {msg.senderName}
+                </span>
+              )}
+              <ChatBubble
+                message={msg}
+                onReply={setReplyingTo}
+                onActionMenu={setActiveMessage}
+              />
+            </div>
+          ))}
+
+          {isOtherUserTyping && <TypingIndicator username={activeChat.name} />}
+
+          {uploadProgress !== null && (
+            <div className="flex justify-end mb-4">
+              <div className="bg-blue-50 dark:bg-slate-800 p-3 rounded-2xl border dark:border-slate-700 w-48">
+                <div className="flex items-center gap-3 mb-2">
+                  <File size={16} className="text-blue-600 animate-pulse" />
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">
+                    Uploading...
+                  </span>
+                </div>
+                <div className="h-1 w-full bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input Bar */}
+        <div className="p-4 border-t border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 relative z-20">
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+
+          {replyingTo && (
+            <div className="max-w-4xl mx-auto mb-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-t-xl border-l-4 border-blue-600 flex justify-between items-center">
+              <div className="truncate pr-4">
+                <p className="text-[10px] font-bold text-blue-600 uppercase">
+                  Replying to {replyingTo.senderName}
+                </p>
+                <p className="text-xs text-gray-400 truncate">{replyingTo.text}</p>
+              </div>
+              <button onClick={() => setReplyingTo(null)}>
+                <X size={18} />
+              </button>
+            </div>
+          )}
+
+          {showEmoji && (
+            <div className="absolute bottom-20 left-4 z-[100]">
+              <ChatEmojiPicker
+                onEmojiClick={(e: any) => handleInputChange(input + e)}
+                theme="dark"
+              />
+            </div>
+          )}
+
+          {showGif && (
+            <div className="absolute bottom-20 left-24 z-[100]">
+              <GifPicker onGifClick={handleGifSend} />
+            </div>
+          )}
+
+          <form
+            onSubmit={handleSendMessage}
+            className={cn(
+              "max-w-4xl mx-auto flex items-center gap-2 bg-gray-100 dark:bg-slate-800 p-2 border dark:border-slate-700 transition-all",
+              replyingTo ? "rounded-b-2xl" : "rounded-2xl"
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2 text-gray-500 hover:text-blue-500"
+            >
+              <Paperclip size={22} />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowEmoji(!showEmoji);
+                setShowGif(false);
+              }}
+              className="p-2 text-gray-500 hover:text-blue-500"
+            >
+              <Smile size={22} />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowGif(!showGif);
+                setShowEmoji(false);
+              }}
+              className="p-2 text-gray-500 hover:text-pink-500"
+            >
+              <Gift size={22} />
+            </button>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => handleInputChange(e.target.value)}
+              placeholder="Type a message..."
+              className="flex-1 bg-transparent border-none px-2 py-2 text-sm outline-none dark:text-white"
+            />
+            <button
+              type="submit"
+              disabled={!input.trim()}
+              className="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 shadow-md transition-all active:scale-95 disabled:opacity-50"
+            >
+              <Send size={18} fill="currentColor" />
+            </button>
+          </form>
+        </div>
+      </section>
+    </main>
+  );
+}
