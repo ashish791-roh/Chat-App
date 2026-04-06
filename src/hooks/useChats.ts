@@ -1,64 +1,57 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import {
-  collection, query, where, orderBy, onSnapshot,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { Chat, OnlineStatusMap } from "@/types/chat";
-
-export function useChats(
-  myUid: string | null,
-  onlineStatusMap: OnlineStatusMap
-) {
-  const [chats, setChats] = useState<Chat[]>([]);
-
-  useEffect(() => {
-    if (!myUid) return;
-
-    const q = query(
-      collection(db, "chats"),
-      where("members", "array-contains", myUid),
-      orderBy("lastMessageAt", "desc")
-    );
-
-    const unsub = onSnapshot(q, (snap) => {
-      const loaded: Chat[] = [];
-
-      snap.forEach((d) => {
-        const data = d.data();
-        const isGroup = data.isGroup ?? false;
-        const otherId = isGroup
-          ? null
-          : (data.members as string[]).find((m) => m !== myUid) ?? null;
-        const isOnline = otherId ? (onlineStatusMap[otherId] ?? false) : false;
-
-        loaded.push({
-          id: d.id,
-          name: data.name ?? "Unknown",
-          isGroup,
-          lastMessage: data.lastMessage ?? "",
-          lastMessageAt: data.lastMessageAt ?? null,
-          status: isOnline ? "Active now" : "Offline",
-          isOnline,
-          members: data.members ?? [],
-        });
-      });
-
-      setChats(loaded);
-    });
-
-    return () => unsub();
-  }, [myUid]); // eslint-disable-line
-
-  // Patch isOnline / status whenever onlineStatusMap changes
-  // without re-subscribing to Firestore
-  const patched = chats.map((c) => {
-    if (c.isGroup) return c;
-    const otherId = c.members?.find((m) => m !== myUid) ?? c.id;
-    const isOnline = onlineStatusMap[otherId] ?? false;
-    return { ...c, isOnline, status: isOnline ? "Active now" : "Offline" };
-  });
-
-  return patched;
+// @/types/chat.ts
+import { Timestamp } from "firebase/firestore";
+export interface UserProfile {
+  uid: string;
+  displayName: string;
+  username?: string | null;
+  avatar?: string | null;
+  phoneNumber?: string | null;
+  isOnline?: boolean;
+  lastSeen?: Timestamp | null;
 }
+
+export interface Chat {
+  id: string;
+  name: string;
+  isGroup: boolean;
+  lastMessage: string;
+  lastMessageAt?: Timestamp | null;
+  status: string;
+  isOnline?: boolean;
+  members?: string[];          
+}
+
+export interface Message {
+  id: string;
+  senderId: string;
+  senderName: string;
+  receiverId?: string;
+  groupId?: string;
+  text: string;
+  timestamp: string;
+  isMe: boolean;
+  status: "sent" | "delivered" | "read";
+  replyTo?: { id: string; text: string; senderName: string };
+  reactions?: Record<string, string[]>;
+  isDeleted?: boolean;
+  gift?: { id: string; emoji: string; label: string; cost: number };
+}
+
+export type CallState =
+  | "idle"
+  | "calling"   
+  | "incoming" 
+  | "active"    
+  | "ended";   
+
+export interface ActiveCall {
+  callId: string;
+  peerId: string;
+  peerName: string;
+  peerPhone?: string;
+  isVideo: boolean;
+  direction: "outgoing" | "incoming";
+  _offer?: RTCSessionDescriptionInit; 
+}
+
+export type OnlineStatusMap = Record<string, boolean>;
