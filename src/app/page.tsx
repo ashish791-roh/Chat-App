@@ -4,13 +4,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Send, Users, Phone, Video, X, Trash2, Reply,
   Settings, Search, UserPlus, Paperclip, File,
-  Smile, Gift, MoreVertical,
+  Smile, Gift, MoreVertical, Menu, ArrowLeft,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { collection, doc, addDoc, updateDoc, getDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-// ── Local components ──────────────────────────────────────────────────────────
+
 import ChatBubble from "@/components/ChatBubble";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import ChatEmojiPicker from "@/components/EmojiPicker";
@@ -22,8 +22,8 @@ import CallScreen from "@/components/CallScreen";
 import PhoneNumberModal from "@/components/PhoneNumberModal";
 import UserSearchModal from "@/components/UserSearchModal";
 import CreateGroupModal from "@/components/CreateGroupModal";
+import GiftPickerModal, { GiftItem, GIFTS } from "@/components/GiftPickerModal";
 
-// ── Hooks ─────────────────────────────────────────────────────────────────────
 import { useAuth } from "@/hooks/useAuth";
 import { usePresence } from "@/hooks/usePresence";
 import { useFriends } from "@/hooks/useFriends";
@@ -31,7 +31,6 @@ import { useChats } from "@/hooks/useChats";
 import { useMessages } from "@/hooks/useMessages";
 import { useCall } from "@/hooks/useCall";
 
-// ── Lib / types ───────────────────────────────────────────────────────────────
 import { socket } from "@/lib/socket";
 import { ensureDmChat, cn } from "@/lib/chatHelpers";
 import { Chat, Message, UserProfile } from "@/types/chat";
@@ -40,7 +39,6 @@ export default function ChatPage() {
   const router = useRouter();
   const { user: authUser, loading } = useAuth();
 
-  // ── UI States ──────────────────────────────────────────────────────────────
   const [input, setInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -53,17 +51,18 @@ export default function ChatPage() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-
-  // ── Refs ───────────────────────────────────────────────────────────────────
+  const [isGiftModalOpen, setIsGiftModalOpen] = useState(false); 
+  const [giftAnimation, setGiftAnimation] = useState<{ emoji: string; label: string } | null>(null);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
-  // ── Current user ───────────────────────────────────────────────────────────
   const currentUser = authUser
     ? {
         uid: authUser.id,
@@ -72,7 +71,6 @@ export default function ChatPage() {
       }
     : null;
 
-  // ── Custom hooks ───────────────────────────────────────────────────────────
   usePresence(currentUser);
 
   const { friends, onlineStatusMap, myPhone } = useFriends(currentUser?.uid ?? null);
@@ -90,31 +88,26 @@ export default function ChatPage() {
     remoteVideoRef: remoteVideoRef as React.RefObject<HTMLVideoElement>,
   });
 
-  // ── Auto-select first chat ─────────────────────────────────────────────────
   useEffect(() => {
     if (!activeChat && chats.length > 0) setActiveChat(chats[0]);
   }, [chats, activeChat]);
-
-  // ── Auth guard ─────────────────────────────────────────────────────────────
+  
   useEffect(() => {
     if (!loading && !authUser) router.replace("/auth/login");
   }, [authUser, loading, router]);
-
-  // ── Auto-scroll ────────────────────────────────────────────────────────────
+  
   useEffect(() => {
     if (scrollRef.current)
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, showEmoji, showGif, replyingTo, uploadProgress, isOtherUserTyping]);
 
-  // ── Socket connect ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!currentUser) return;
     if (!socket.connected) socket.connect();
     socket.emit("user_online", { userId: currentUser.uid });
     return () => { socket.emit("user_offline", { userId: currentUser.uid }); };
-  }, [currentUser?.uid]); // eslint-disable-line
+  }, [currentUser?.uid]); 
 
-  // ── Socket typing ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!currentUser || !activeChat) return;
     const onTyping = (d: { from: string; to: string }) => {
@@ -126,18 +119,16 @@ export default function ChatPage() {
     socket.on("typing", onTyping);
     socket.on("stop_typing", onStop);
     return () => { socket.off("typing", onTyping); socket.off("stop_typing", onStop); };
-  }, [currentUser?.uid, activeChat?.id]); // eslint-disable-line
+  }, [currentUser?.uid, activeChat?.id]); 
 
-  // ── Save phone number ─────────────────────────────────────────────────────
   const savePhoneNumber = useCallback(async (phone: string) => {
     if (!currentUser) return;
     try {
       await updateDoc(doc(db, "users", currentUser.uid), { phoneNumber: phone });
       socket.emit("profile_updated", { userId: currentUser.uid, phoneNumber: phone });
     } catch (err) { console.error("Phone save failed:", err); }
-  }, [currentUser?.uid]); // eslint-disable-line
+  }, [currentUser?.uid]); 
 
-  // ── Start chat from user search ───────────────────────────────────────────
   const handleStartChatWithUser = useCallback(async (user: UserProfile) => {
     if (!currentUser) return;
     const chatId = await ensureDmChat(currentUser.uid, user.uid, user.displayName);
@@ -146,9 +137,8 @@ export default function ChatPage() {
       lastMessage: "", status: user.isOnline ? "Active now" : "Offline",
       isOnline: user.isOnline, members: [currentUser.uid, user.uid],
     });
-  }, [currentUser?.uid]); // eslint-disable-line
+  }, [currentUser?.uid]);
 
-  // ── Send message ──────────────────────────────────────────────────────────
   const handleSendMessage = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!input.trim() || !currentUser || !activeChat) return;
@@ -171,18 +161,16 @@ export default function ChatPage() {
       await updateDoc(doc(db, "chats", chatId), { lastMessage: text, lastMessageAt: serverTimestamp() });
       socket.emit("send_message", { ...payload, chatId });
     } catch (err) { console.error("Send failed:", err); }
-  }, [input, currentUser?.uid, activeChat?.id, replyingTo]); // eslint-disable-line
+  }, [input, currentUser?.uid, activeChat?.id, replyingTo]); 
 
-  // ── Delete message ────────────────────────────────────────────────────────
   const handleDeleteMessage = useCallback(async (msg: Message) => {
     if (!activeChat) return;
     try {
       await updateDoc(doc(db, "chats", activeChat.id, "messages", msg.id), { isDeleted: true, text: "" });
     } catch (err) { console.error("Delete failed:", err); }
     setActiveMessage(null);
-  }, [activeChat?.id]); // eslint-disable-line
-
-  // ── Reaction ──────────────────────────────────────────────────────────────
+  }, [activeChat?.id]); 
+  
   const handleReaction = useCallback(async (emoji: string) => {
     if (!activeMessage || !currentUser || !activeChat) return;
     const ref = doc(db, "chats", activeChat.id, "messages", activeMessage.id);
@@ -196,9 +184,7 @@ export default function ChatPage() {
       });
     } catch (err) { console.error("Reaction failed:", err); }
     setActiveMessage(null);
-  }, [activeMessage?.id, currentUser?.uid, activeChat?.id]); // eslint-disable-line
-
-  // ── Create group ──────────────────────────────────────────────────────────
+  }, [activeMessage?.id, currentUser?.uid, activeChat?.id]); 
   const handleCreateGroup = useCallback(async (data: { name: string; members: string[] }) => {
     if (!currentUser) return;
     try {
@@ -212,7 +198,6 @@ export default function ChatPage() {
     setIsGroupModalOpen(false);
   }, [currentUser?.uid]); // eslint-disable-line
 
-  // ── File send ─────────────────────────────────────────────────────────────
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentUser || !activeChat) return;
@@ -239,7 +224,22 @@ export default function ChatPage() {
     }, 150);
   };
 
-  // ── GIF send ──────────────────────────────────────────────────────────────
+  const handleGiftSend = async (gift: GiftItem) => {
+    setGiftAnimation({ emoji: gift.emoji, label: gift.label });
+    setTimeout(() => setGiftAnimation(null), 2500);
+    try {
+      const chatId = activeChat.isGroup ? activeChat.id : await ensureDmChat(currentUser.uid, activeChat.id, activeChat.name);
+      const giftText = `🎁 sent a gift: ${gift.emoji} ${gift.label}`;
+      await addDoc(collection(db, "chats", chatId, "messages"), {
+        senderId: currentUser.uid, senderName: currentUser.displayName,
+        text: giftText, timestamp: serverTimestamp(), status: "sent", isDeleted: false,
+        gift: { id: gift.id, emoji: gift.emoji, label: gift.label, cost: gift.cost },
+        ...(activeChat.isGroup ? { groupId: activeChat.id } : { receiverId: activeChat.id }),
+      });
+      await updateDoc(doc(db, "chats", chatId), { lastMessage: giftText, lastMessageAt: serverTimestamp() });
+    } catch (err) { console.error("Gift send failed:", err); }
+  };
+
   const handleGifSend = async (url: string) => {
     if (!currentUser || !activeChat) return;
     setShowGif(false);
@@ -254,7 +254,6 @@ export default function ChatPage() {
     } catch (err) { console.error("GIF send failed:", err); }
   };
 
-  // ── Typing emit ───────────────────────────────────────────────────────────
   const handleInputChange = (val: string) => {
     setInput(val);
     if (!currentUser || !activeChat) return;
@@ -268,7 +267,6 @@ export default function ChatPage() {
     }
   };
 
-  // ── Derived ───────────────────────────────────────────────────────────────
   const activePeerPhone = activeChat && !activeChat.isGroup
     ? friends.find(f => f.uid === activeChat.id)?.phoneNumber ?? null : null;
   const activeChatIsOnline = !!activeChat && !activeChat.isGroup && !!onlineStatusMap[activeChat.id];
@@ -310,6 +308,22 @@ export default function ChatPage() {
       {isGroupModalOpen && (
         <CreateGroupModal friends={friends} currentUser={currentUser} onClose={() => setIsGroupModalOpen(false)} onCreate={handleCreateGroup} />
       )}
+      <GiftPickerModal
+        isOpen={isGiftModalOpen}
+        onClose={() => setIsGiftModalOpen(false)}
+        onSend={handleGiftSend}
+        recipientName={activeChat?.name ?? ""}
+      />
+
+      {/* Gift animation overlay */}
+      {giftAnimation && (
+        <div className="fixed inset-0 z-[130] pointer-events-none flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2 animate-bounce">
+            <span className="text-8xl drop-shadow-lg">{giftAnimation.emoji}</span>
+            <span className="text-white font-bold text-lg bg-black/40 px-4 py-1 rounded-full backdrop-blur-sm">{giftAnimation.label} sent!</span>
+          </div>
+        </div>
+      )}
 
       {activeMessage && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4" onClick={() => setActiveMessage(null)}>
@@ -331,8 +345,20 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* Mobile sidebar overlay */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-80 border-r border-gray-200 dark:border-slate-800 hidden md:flex flex-col bg-gray-50 dark:bg-slate-900/50">
+      <aside className={cn(
+        "w-80 border-r border-gray-200 dark:border-slate-800 flex flex-col bg-gray-50 dark:bg-slate-900/50 transition-transform duration-300 ease-in-out",
+        "fixed inset-y-0 left-0 z-50 md:relative md:translate-x-0",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      )}>
         <div className="p-5 border-b dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
           <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold text-xl">
             <Users size={20} className="bg-blue-600 p-1.5 rounded-lg text-white" />BlinkChat
@@ -341,6 +367,14 @@ export default function ChatPage() {
             <button onClick={() => setIsSearchModalOpen(true)} className="p-2 text-gray-500 hover:text-blue-600 rounded-full transition-all" title="Find user by UID or phone"><Search size={18} /></button>
             <button onClick={() => setIsGroupModalOpen(true)} className="p-2 text-gray-500 hover:text-blue-600 rounded-full transition-all" title="Create Group"><UserPlus size={20} /></button>
             <ThemeToggle />
+            {/* Close button — mobile only */}
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="md:hidden p-2 text-gray-500 hover:text-gray-800 dark:hover:text-white rounded-full transition-all"
+              title="Close menu"
+            >
+              <X size={20} />
+            </button>
           </div>
         </div>
 
@@ -356,7 +390,7 @@ export default function ChatPage() {
           {filteredChats.map(chat => {
             const online = !chat.isGroup && !!onlineStatusMap[chat.id];
             return (
-              <div key={chat.id} onClick={() => setActiveChat(chat)}
+              <div key={chat.id} onClick={() => { setActiveChat(chat); setIsSidebarOpen(false); }}
                 className={cn("flex items-center gap-3 p-4 cursor-pointer transition-all border-l-4",
                   activeChat?.id === chat.id ? "bg-blue-50 dark:bg-slate-800 border-blue-600" : "hover:bg-gray-50 dark:hover:bg-slate-800/50 border-transparent")}>
                 <div className="relative shrink-0">
@@ -418,7 +452,16 @@ export default function ChatPage() {
       <section className="flex-1 flex flex-col h-full bg-white dark:bg-slate-950 relative">
         <header className="h-[73px] px-4 md:px-6 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-20">
           {activeChat ? (
-            <div className="flex items-center gap-3 cursor-pointer" onClick={() => setIsMediaOpen(true)}>
+            <div className="flex items-center gap-2 md:gap-3">
+              {/* Hamburger — mobile only */}
+              <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="md:hidden p-2 -ml-2 text-gray-500 hover:text-blue-600 rounded-full transition-all"
+                title="Open chats"
+              >
+                <Menu size={22} />
+              </button>
+              <div className="flex items-center gap-3 cursor-pointer" onClick={() => setIsMediaOpen(true)}>
               <div className="relative shrink-0">
                 <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-md",
                   activeChat.isGroup ? "bg-gradient-to-tr from-orange-400 to-rose-500" : "bg-blue-600")}>
@@ -439,9 +482,20 @@ export default function ChatPage() {
                   )}
                 </div>
               </div>
+              </div>
             </div>
           ) : (
-            <div className="text-gray-400 text-sm">Select a chat to start</div>
+            <div className="flex items-center gap-2">
+              {/* Hamburger — mobile only, when no chat selected */}
+              <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="md:hidden p-2 -ml-2 text-gray-500 hover:text-blue-600 rounded-full transition-all"
+                title="Open chats"
+              >
+                <Menu size={22} />
+              </button>
+              <span className="text-gray-400 text-sm">Select a chat to start</span>
+            </div>
           )}
 
           <div className="flex items-center gap-1 md:gap-2 text-gray-500 dark:text-gray-400">
@@ -514,7 +568,7 @@ export default function ChatPage() {
               replyingTo ? "rounded-b-2xl" : "rounded-2xl")}>
             <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-500 hover:text-blue-500"><Paperclip size={22} /></button>
             <button type="button" onClick={() => { setShowEmoji(!showEmoji); setShowGif(false); }} className="p-2 text-gray-500 hover:text-blue-500"><Smile size={22} /></button>
-            <button type="button" onClick={() => { setShowGif(!showGif); setShowEmoji(false); }} className="p-2 text-gray-500 hover:text-pink-500"><Gift size={22} /></button>
+            <button type="button" onClick={() => { setShowEmoji(false); setIsGiftModalOpen(true); }} className="p-2 text-gray-500 hover:text-pink-500"><Gift size={22} /></button>
             <input type="text" value={input} onChange={e => handleInputChange(e.target.value)}
               placeholder={activeChat ? "Type a message…" : "Select a chat to start"}
               disabled={!activeChat}
