@@ -32,8 +32,7 @@ import { useCall } from "@/hooks/useCall";
 
 import { socket } from "@/lib/socket";
 import { ensureDmChat, cn } from "@/lib/chatHelpers";
-import { Message, UserProfile } from "@/types";
-import { Chat } from "@/types/chat";
+import { Message, UserProfile } from "@/types/chat";
 
 export default function ChatPage() {
   const router = useRouter();
