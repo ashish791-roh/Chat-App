@@ -225,6 +225,8 @@ export default function ChatPage() {
   };
 
   const handleGiftSend = async (gift: GiftItem) => {
+
+    if (!activeChat || !currentUser) return;
     setGiftAnimation({ emoji: gift.emoji, label: gift.label });
     setTimeout(() => setGiftAnimation(null), 2500);
     try {
