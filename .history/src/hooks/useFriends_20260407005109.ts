@@ -19,35 +19,42 @@ interface UseFriendsResult {
 }
 
 export function useFriends(myUid: string | null): UseFriendsResult {
-  const [friends, setFriends]                 = useState<UserProfile[]>([]);
+  const [friends, setFriends]           = useState<UserProfile[]>([]);
   const [onlineStatusMap, setOnlineStatusMap] = useState<OnlineStatusMap>({});
-  const [myPhone, setMyPhone]                 = useState("");
+  const [myPhone, setMyPhone]           = useState("");
 
-  // ── Own document → phone number ──────────────────────────────────────────
+  // ── 1. Listen to own document for phone number ───────────────────────────
   useEffect(() => {
     if (!myUid) return;
+
     const unsub = onSnapshot(doc(db, "users", myUid), (snap) => {
-      if (snap.exists()) setMyPhone(snap.data().phoneNumber ?? "");
+      if (snap.exists()) {
+        setMyPhone(snap.data().phoneNumber ?? "");
+      }
     });
+
     return () => unsub();
   }, [myUid]);
 
-  // ── Chats → peer UIDs → individual profile fetches ───────────────────────
+  // ── 2. Listen to chats the user is in, then fetch each peer's profile ────
   useEffect(() => {
     if (!myUid) return;
 
+    // Subscribe to all chats where myUid is a member
     const chatsQuery = query(
       collection(db, "chats"),
       where("members", "array-contains", myUid)
     );
 
     const unsubChats = onSnapshot(chatsQuery, async (chatSnap) => {
+      // Collect unique peer UIDs across all DM chats
       const peerUids = new Set<string>();
 
       chatSnap.forEach((d) => {
         const data = d.data();
-        if (data.isGroup) return;
-        (data.members as string[]).forEach((uid) => {
+        if (data.isGroup) return; // skip group chats
+        const members: string[] = data.members ?? [];
+        members.forEach((uid) => {
           if (uid !== myUid) peerUids.add(uid);
         });
       });
@@ -58,15 +65,16 @@ export function useFriends(myUid: string | null): UseFriendsResult {
         return;
       }
 
-      const profiles: UserProfile[]       = [];
-      const statusPatch: OnlineStatusMap  = {};
+      // Fetch each peer's user document individually (allowed by rules)
+      const profiles: UserProfile[] = [];
+      const statusPatch: OnlineStatusMap = {};
 
       await Promise.all(
         Array.from(peerUids).map(async (uid) => {
           try {
             const snap = await getDoc(doc(db, "users", uid));
             if (!snap.exists()) return;
-            const data     = snap.data();
+            const data = snap.data();
             const isOnline = data.isOnline ?? false;
 
             profiles.push({

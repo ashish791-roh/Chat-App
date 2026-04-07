@@ -1,3 +1,5 @@
+import { collection, query, where, getDocs } from "firebase/firestore";
+
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -16,8 +18,7 @@ import {
   onSnapshot,
   collection,
   query,
-  where,
-  getDocs,
+  
 } from "firebase/firestore";
 
 import { auth, db } from "./firebase";
@@ -28,7 +29,6 @@ export interface AppUser {
   email: string;
   avatar: string;
   bio: string;
-  username?: string;
 }
 
 const formatUser = (firebaseUser: FirebaseUser): AppUser => ({
@@ -39,7 +39,6 @@ const formatUser = (firebaseUser: FirebaseUser): AppUser => ({
   bio: "",
 });
 
-// ── Check username availability ───────────────────────────────────────────────
 export const isUsernameAvailable = async (username: string): Promise<boolean> => {
   const q = query(
     collection(db, "users"),
@@ -49,22 +48,20 @@ export const isUsernameAvailable = async (username: string): Promise<boolean> =>
   return snap.empty;
 };
 
-// ── Sign up ───────────────────────────────────────────────────────────────────
 export const signup = async (
   name: string,
   email: string,
   password: string,
-  username: string
+  username: string          // ← add param
 ): Promise<AppUser> => {
   const { user } = await createUserWithEmailAndPassword(auth, email, password);
-
   await updateProfile(user, { displayName: name });
 
   await setDoc(doc(db, "users", user.uid), {
     id: user.uid,
     name,
     email,
-    username: username.toLowerCase().trim(),
+    username: username.toLowerCase().trim(),   // ← save it
     avatar: "",
     bio: "",
     isOnline: true,
@@ -75,13 +72,13 @@ export const signup = async (
   return formatUser(user);
 };
 
-// ── Log in ────────────────────────────────────────────────────────────────────
 export const login = async (
   email: string,
   password: string
 ): Promise<AppUser> => {
   const { user } = await signInWithEmailAndPassword(auth, email, password);
 
+  // 🟢 Mark online
   await updateDoc(doc(db, "users", user.uid), {
     isOnline: true,
     lastSeen: serverTimestamp(),
@@ -92,7 +89,6 @@ export const login = async (
   return formatUser(user);
 };
 
-// ── Log out ───────────────────────────────────────────────────────────────────
 export const logout = async (): Promise<void> => {
   const user = auth.currentUser;
 
@@ -107,7 +103,7 @@ export const logout = async (): Promise<void> => {
   await signOut(auth);
 };
 
-// ── Update profile ────────────────────────────────────────────────────────────
+// ✅ FIXED: Safe profile update (with avatar limit protection)
 export const updateUserProfile = async (
   uid: string,
   data: { name?: string; avatar?: string; bio?: string }
@@ -150,13 +146,12 @@ export const updateUserProfile = async (
   }
 };
 
-// ── Get user profile ──────────────────────────────────────────────────────────
 export const getUserProfile = async (uid: string) => {
   const snap = await getDoc(doc(db, "users", uid));
   return snap.exists() ? (snap.data() as AppUser) : null;
 };
 
-// ── Auth state listener ───────────────────────────────────────────────────────
+// ✅ UPDATED: Auth + online sync
 export const subscribeToAuthState = (
   callback: (user: AppUser | null) => void
 ) => {
@@ -180,7 +175,7 @@ export const subscribeToAuthState = (
   });
 };
 
-// ── Real-time user status listener ───────────────────────────────────────────
+// ✅ NEW: Real-time user status listener
 export const subscribeToUserStatus = (
   uid: string,
   callback: (data: any) => void
