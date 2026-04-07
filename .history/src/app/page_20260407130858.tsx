@@ -123,7 +123,7 @@ export default function ChatPage() {
 
   const { user, loading } = useAuth();
 
-  if (loading) return <div>Loading...</div>;
+if (loading) return <div>Loading...</div>;
 
   const savePhoneNumber = useCallback(async (phone: string) => {
     if (!currentUser) return;
