@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/chatHelpers";
-import { X, Download, Reply, Heart, Star } from "lucide-react";
+import { X, Download, Reply, Heart, Star, Phone, Video, PhoneMissed } from "lucide-react";
 
 export default function ChatBubble({
   message,
@@ -136,6 +136,36 @@ export default function ChatBubble({
               <a href={contentText} download={fileName} target={contentText.startsWith("data:") || contentText.startsWith("blob:") ? "_self" : "_blank"} rel="noopener noreferrer" className="font-medium underline hover:opacity-80 break-all">
                 {fileName}
               </a>
+            </div>
+          ) : message.gift ? (
+            <div className="flex flex-col items-center p-2 min-w-[120px]">
+              <span className="text-5xl animate-bounce mb-2 drop-shadow-lg">{message.gift.emoji}</span>
+              <span className="font-bold text-sm bg-black/20 px-3 py-1 rounded-full text-white backdrop-blur-sm shadow-inner cursor-default">
+                {message.gift.label}
+              </span>
+              <span className="text-[10px] font-bold text-pink-200 mt-2 tracking-widest uppercase">Gift</span>
+            </div>
+          ) : message.coinTransfer ? (
+            <div className="flex flex-col items-center p-2 min-w-[120px]">
+              <div className="relative">
+                <span className="text-5xl drop-shadow-xl animate-pulse">🪙</span>
+                <div className="absolute inset-0 bg-yellow-400 blur-xl opacity-20 rounded-full" />
+              </div>
+              <span className="font-extrabold text-lg mt-2 bg-yellow-900/40 border border-yellow-500/50 px-3 py-1 rounded-full text-yellow-300 backdrop-blur-sm shadow-inner cursor-default">
+                {message.coinTransfer.amount} Coins
+              </span>
+            </div>
+          ) : message.callLog ? (
+            <div className="flex items-center gap-3 p-2 pr-6 min-w-[200px]">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-inner ${message.callLog.status === "completed" ? "bg-emerald-500/20 text-emerald-200 border border-emerald-500/30" : "bg-red-500/20 text-red-200 border border-red-500/30"}`}>
+                {message.callLog.status === "completed" ? (message.callLog.isVideo ? <Video size={18} /> : <Phone size={18} />) : <PhoneMissed size={18} />}
+              </div>
+              <div className="flex flex-col">
+                <span className="font-bold text-sm tracking-wide">{message.callLog.isVideo ? "Video Call" : "Voice Call"}</span>
+                <span className={`text-[11px] font-bold uppercase tracking-wider mt-0.5 opacity-90 ${message.callLog.status === "completed" ? "text-emerald-300" : "text-red-300"}`}>
+                  {message.callLog.status === "completed" ? (message.callLog.duration > 59 ? `${Math.floor(message.callLog.duration / 60)}m ${message.callLog.duration % 60}s` : `${message.callLog.duration}s`) : message.callLog.status}
+                </span>
+              </div>
             </div>
           ) : (
             <p className="whitespace-pre-wrap break-words">{contentText}</p>

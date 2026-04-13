@@ -29,6 +29,7 @@ export interface AppUser {
   avatar: string;
   bio: string;
   username?: string;
+  coins?: number;
 }
 
 const formatUser = (firebaseUser: FirebaseUser): AppUser => ({

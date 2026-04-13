@@ -4,6 +4,9 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { X, Camera, User, Check, Bell, BellOff, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { subscribeToUserStatus } from "@/lib/auth";
+import { doc, updateDoc, increment } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { updateUserProfile } from "@/lib/auth";
 
 export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -13,6 +16,7 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onC
   const [photo, setPhoto] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [coins, setCoins] = useState<number>(500);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load user data when modal opens
@@ -21,8 +25,30 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onC
       setName(user.name);
       setPhoto(user.avatar);
       setBio(user.bio || "Exploring BlinkChat 🚀");
+
+      const unsub = subscribeToUserStatus(user.id, (data) => {
+        if (data.coins !== undefined) {
+          setCoins(data.coins);
+        } else {
+          // Initialize coins for users missing the field
+          updateDoc(doc(db, "users", user.id), { coins: 500 }).catch(console.error);
+          setCoins(500);
+        }
+      });
+      return () => unsub();
     }
   }, [user, isOpen]);
+
+  const handleAddCoins = async () => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, "users", user.id), {
+        coins: increment(100),
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -96,6 +122,28 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onC
                 <div className={`w-4 h-4 bg-white rounded-full transition-transform ${notifications ? 'translate-x-5' : 'translate-x-1'}`} />
               </button>
             </div>
+
+            {/* Wallet Integration */}
+            <div className="bg-gradient-to-br from-pink-500 to-orange-400 p-4 rounded-2xl shadow-lg border border-pink-400 relative overflow-hidden mt-4">
+              <div className="absolute -right-6 -top-6 text-white/20">
+                <svg width="100" height="100" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-1.16 2.4-1.92 0-1.06-.55-1.57-2.3-2.19-2-.72-3.41-1.66-3.41-3.66 0-1.8 1.4-2.88 3.19-3.23V4.5h2.67v1.89c1.65.25 2.76 1.42 2.91 3.01h-1.92c-.11-1.01-.84-1.63-2.31-1.63-1.64 0-2.27.91-2.27 1.7 0 1.02.6 1.45 2.5 2.11 2.22.78 3.22 1.89 3.22 3.86 0 2.05-1.46 3.07-3.3 3.44z" />
+                </svg>
+              </div>
+              <div className="relative z-10">
+                <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest mb-1">My Wallet</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-3xl">🪙</span>
+                    <span className="text-3xl font-extrabold text-white drop-shadow-md">{coins}</span>
+                  </div>
+                  <button onClick={handleAddCoins} className="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-xl font-bold text-xs backdrop-blur-md transition-all active:scale-95 shadow-sm">
+                    +100 Coins
+                  </button>
+                </div>
+              </div>
+            </div>
+
           </div>
 
           <button 

@@ -5,12 +5,13 @@ import {
   Send, Users, Phone, Video, X, Trash2, Reply,
   Settings, Search, UserPlus, Paperclip, File,
   Smile, Gift, MoreVertical, Menu, ChevronDown,
-  Mic, ImageIcon, Zap, Edit2, Pin, Star, Forward, Copy
+  Mic, ImageIcon, Zap, Edit2, Pin, Star, Forward, Copy,
+  Trophy, Coins as CoinsIcon
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   collection, doc, addDoc, updateDoc, getDoc,
-  serverTimestamp, Timestamp,
+  serverTimestamp, Timestamp, increment
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -24,9 +25,13 @@ import CallScreen from "@/components/CallScreen";
 import PhoneNumberModal from "@/components/PhoneNumberModal";
 import UserSearchModal from "@/components/UserSearchModal";
 import CreateGroupModal from "@/components/CreateGroupModal";
+import CallHistoryModal from "@/components/CallHistoryModal";
 import GiftPickerModal, { GiftItem } from "@/components/GiftPickerModal";
+import LeaderboardModal from "@/components/LeaderboardModal";
+import SendCoinsModal from "@/components/SendCoinsModal";
 
 import { useAuth } from "@/hooks/useAuth";
+import { subscribeToUserStatus } from "@/lib/auth";
 import { usePresence } from "@/hooks/usePresence";
 import { useFriends } from "@/hooks/useFriends";
 import { useChats } from "@/hooks/useChats";
@@ -123,8 +128,12 @@ export default function ChatPage() {
   const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [isGiftModalOpen, setIsGiftModalOpen] = useState(false);
+  const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
+  const [isSendCoinsModalOpen, setIsSendCoinsModalOpen] = useState(false);
+  const [isCallHistoryOpen, setIsCallHistoryOpen] = useState(false);
   const [giftAnimation, setGiftAnimation] = useState<{ emoji: string; label: string } | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [myCoins, setMyCoins] = useState<number>(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -165,6 +174,50 @@ export default function ChatPage() {
     myPhone,
     localVideoRef: localVideoRef as React.RefObject<HTMLVideoElement>,
     remoteVideoRef: remoteVideoRef as React.RefObject<HTMLVideoElement>,
+    onCallEnded: async (details) => {
+      if (!currentUser) return;
+      // Only the caller logs it to prevent duplicate entries
+      if (details.direction === "outgoing") {
+         try {
+           // 1. Log to generic "calls" collection for Call History
+           await addDoc(collection(db, "calls"), {
+             members: [currentUser.uid, details.peerId],
+             callerId: currentUser.uid,
+             callerName: currentUser.displayName,
+             receiverId: details.peerId,
+             receiverName: details.peerName,
+             duration: details.duration,
+             isVideo: details.isVideo,
+             status: details.status,
+             timestamp: serverTimestamp()
+           });
+
+           // 2. Insert into the actual Chat Thread
+           const chatId = await ensureDmChat(currentUser.uid, details.peerId, details.peerName);
+           const typeStr = details.isVideo ? "Video" : "Voice";
+           const callText = `📞 ${typeStr} Call ${details.status === "completed" ? "Ended" : details.status}`;
+           
+           await addDoc(collection(db, "chats", chatId, "messages"), {
+             senderId: currentUser.uid,
+             senderName: currentUser.displayName,
+             text: callText,
+             timestamp: serverTimestamp(),
+             status: "sent",
+             isDeleted: false,
+             callLog: {
+               duration: details.duration,
+               isVideo: details.isVideo,
+               status: details.status
+             },
+             receiverId: details.peerId,
+           });
+           await updateDoc(doc(db, "chats", chatId), { lastMessage: callText, lastMessageAt: serverTimestamp() });
+
+         } catch (err) {
+           console.error("Failed to log call history:", err);
+         }
+      }
+    }
   });
 
   useEffect(() => {
@@ -179,7 +232,16 @@ export default function ChatPage() {
     if (!currentUser) return;
     if (!socket.connected) socket.connect();
     socket.emit("user_online", { userId: currentUser.uid });
-    return () => { socket.emit("user_offline", { userId: currentUser.uid }); };
+    
+    // Subscribe to coins
+    const unsub = subscribeToUserStatus(currentUser.uid, (data) => {
+      setMyCoins(data?.coins ?? 0);
+    });
+
+    return () => { 
+      socket.emit("user_offline", { userId: currentUser.uid }); 
+      unsub();
+    };
   }, [currentUser?.uid]); // eslint-disable-line
 
   useEffect(() => {
@@ -490,9 +552,18 @@ export default function ChatPage() {
 
   const handleGiftSend = async (gift: GiftItem) => {
     if (!activeChat || !currentUser) return;
+    if (myCoins < gift.cost) {
+      alert(`Not enough coins! You need ${gift.cost} 🪙 but only have ${myCoins} 🪙.`);
+      return;
+    }
     setGiftAnimation({ emoji: gift.emoji, label: gift.label });
     setTimeout(() => setGiftAnimation(null), 2500);
     try {
+      // Burn coins from sender
+      await updateDoc(doc(db, "users", currentUser.uid), {
+        coins: increment(-gift.cost)
+      });
+
       const chatId = activeChat?.isGroup ? activeChat.id : await ensureDmChat(currentUser.uid, activeChat.id, activeChat.name);
       const giftText = `🎁 sent a gift: ${gift.emoji} ${gift.label}`;
       await addDoc(collection(db, "chats", chatId, "messages"), {
@@ -502,6 +573,29 @@ export default function ChatPage() {
         ...(activeChat.isGroup ? { groupId: activeChat.id } : { receiverId: activeChat.id }),
       });
       await updateDoc(doc(db, "chats", chatId), { lastMessage: giftText, lastMessageAt: serverTimestamp() });
+    } catch (err) { console.error(err); }
+  };
+
+  const handleSendCoins = async (amount: number) => {
+    if (!activeChat || !currentUser || activeChat.isGroup) return; // Only DMs for direct coins transfer
+    if (myCoins < amount) {
+      alert(`Not enough coins! You have ${myCoins} 🪙.`);
+      return;
+    }
+    try {
+      // Deduct from sender, give to receiver
+      await updateDoc(doc(db, "users", currentUser.uid), { coins: increment(-amount) });
+      await updateDoc(doc(db, "users", activeChat.id), { coins: increment(amount) });
+
+      const chatId = await ensureDmChat(currentUser.uid, activeChat.id, activeChat.name);
+      const coinText = `🪙 Transferred ${amount} coins`;
+      await addDoc(collection(db, "chats", chatId, "messages"), {
+        senderId: currentUser.uid, senderName: currentUser.displayName,
+        text: coinText, timestamp: serverTimestamp(), status: "sent", isDeleted: false,
+        coinTransfer: { amount },
+        receiverId: activeChat.id,
+      });
+      await updateDoc(doc(db, "chats", chatId), { lastMessage: coinText, lastMessageAt: serverTimestamp() });
     } catch (err) { console.error(err); }
   };
 
@@ -587,6 +681,9 @@ export default function ChatPage() {
       {isSearchModalOpen && <UserSearchModal myUid={currentUser.uid} onStartChat={handleStartChatWithUser} onClose={() => setIsSearchModalOpen(false)} />}
       {isGroupModalOpen && <CreateGroupModal friends={friends} currentUser={currentUser} onClose={() => setIsGroupModalOpen(false)} onCreate={handleCreateGroup} />}
       <GiftPickerModal isOpen={isGiftModalOpen} onClose={() => setIsGiftModalOpen(false)} onSend={handleGiftSend} recipientName={activeChat?.name ?? ""} />
+      <LeaderboardModal isOpen={isLeaderboardOpen} onClose={() => setIsLeaderboardOpen(false)} />
+      <SendCoinsModal isOpen={isSendCoinsModalOpen} onClose={() => setIsSendCoinsModalOpen(false)} onSend={handleSendCoins} recipientName={activeChat?.name ?? ""} myCoins={myCoins} />
+      <CallHistoryModal isOpen={isCallHistoryOpen} onClose={() => setIsCallHistoryOpen(false)} myUid={currentUser?.uid} />
 
       {/* Gift animation */}
       {giftAnimation && (
@@ -695,6 +792,16 @@ export default function ChatPage() {
                 className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
                 style={{ color: "var(--text-secondary)" }} title="Find user">
                 <Search size={16} />
+              </button>
+              <button onClick={() => setIsCallHistoryOpen(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
+                style={{ color: "var(--text-secondary)" }} title="Call History">
+                <Phone size={16} />
+              </button>
+              <button onClick={() => setIsLeaderboardOpen(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
+                style={{ color: "var(--accent-2)" }} title="Leaderboard">
+                <Trophy size={16} className="text-yellow-500" />
               </button>
               <button onClick={() => setIsGroupModalOpen(true)}
                 className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
@@ -1046,11 +1153,15 @@ export default function ChatPage() {
                   { icon: Paperclip, action: () => fileInputRef.current?.click(), title: "Attach file" },
                   { icon: Smile, action: () => { setShowEmoji(!showEmoji); setShowGif(false); }, title: "Emoji" },
                   { icon: Gift, action: () => { setShowEmoji(false); setIsGiftModalOpen(true); }, title: "Gift" },
+                  { icon: CoinsIcon, action: () => { !activeChat?.isGroup && setIsSendCoinsModalOpen(true); }, title: activeChat?.isGroup ? "Cannot send coins in group" : "Send Coins" },
                 ].map(({ icon: Icon, action, title }) => (
                   <button key={title} type="button" onClick={action} title={title}
-                    className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/8 active:scale-90"
+                    className={cn(
+                      "w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/8 active:scale-90",
+                      title === "Cannot send coins in group" && "opacity-30 cursor-not-allowed"
+                     )}
                     style={{ color: "var(--text-muted)" }}>
-                    <Icon size={20} />
+                    <Icon size={20} className={title === "Send Coins" ? "text-yellow-500" : ""} />
                   </button>
                 ))}
 

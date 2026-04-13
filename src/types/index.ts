@@ -10,6 +10,7 @@ export interface UserProfile {
   phoneNumber?: string | null;
   isOnline?: boolean;
   lastSeen?: Timestamp | null;
+  coins?: number;
 }
 
 // ─── Chat ──────────────────────────────────────────────────────────────────
@@ -45,6 +46,9 @@ export interface Message {
   // ── File / media fields ──────────────────────────────────────────────────
   fileType?: "image" | "pdf" | "file";
   fileName?: string;
+  gift?: { id: string; emoji: string; label: string; cost: number; };
+  coinTransfer?: { amount: number; };
+  callLog?: { duration: number; isVideo: boolean; status: "completed" | "missed" | "declined"; };
 }
 
 // ─── Call ──────────────────────────────────────────────────────────────────
