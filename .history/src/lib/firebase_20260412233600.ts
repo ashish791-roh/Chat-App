@@ -20,4 +20,4 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const rtdb = getDatabase(app);
-export const storage = getStorage(app); // ← fix: export initialized storage instance
+export const storage = getStorage(app); 

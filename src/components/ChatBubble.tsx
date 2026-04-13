@@ -1,88 +1,232 @@
 "use client";
 
+import { useState } from "react";
 import { cn } from "@/lib/chatHelpers";
+import { X, Download, Reply, Heart, Star } from "lucide-react";
 
 export default function ChatBubble({
   message,
   onReply,
   onActionMenu,
+  onReact,
 }: any) {
   const isMe = message.isMe;
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [showHeartPop, setShowHeartPop] = useState(false);
+
+  const handleDoubleClick = () => {
+    if (onReact) {
+      onReact(message.id, "❤️");
+      setShowHeartPop(true);
+      setTimeout(() => setShowHeartPop(false), 800);
+    }
+  };
+
+  // --- STRING-ONLY PARSING ---
+  let isImage = false;
+  let isAudio = false;
+  let isPdfOrFile = false;
+  let fileName = "Document";
+  let contentText = typeof message.text === "string" ? message.text : "";
+
+  // 1. WhatsApp-Style metadata split "FILE::filename::data:..."
+  if (contentText.startsWith("FILE::")) {
+    const parts = contentText.split("::");
+    if (parts.length >= 3) {
+      fileName = parts[1] || "Attachment";
+      contentText = parts.slice(2).join("::");
+    }
+  }
+
+  // 2. Identify if it's an Image or standard File directly from the string
+  if (contentText.startsWith("data:image/") || contentText.startsWith("blob:") || (contentText.startsWith("http") && !contentText.includes(" "))) {
+    isImage = true;
+  } else if (contentText.startsWith("data:audio/")) {
+    isAudio = true;
+  } else if (contentText.startsWith("data:")) {
+    isPdfOrFile = true;
+  }
+  
+  // Fallback for old object-based metadata (if it still lingers in db)
+  if (message.fileType === "image") isImage = true;
+  if (message.fileType === "pdf" || message.fileType === "file") isPdfOrFile = true;
+  if (message.fileName && fileName === "Document") fileName = message.fileName;
+
+  const handleDownload = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (contentText.startsWith("data:") || contentText.startsWith("blob:")) {
+      const a = document.createElement("a");
+      a.href = contentText;
+      a.download = isImage ? fileName || "image.png" : fileName;
+      a.click();
+    } else {
+      window.open(contentText, "_blank");
+    }
+  };
 
   return (
-    <div
-      className={cn(
-        "flex w-full mb-2 group",
-        isMe ? "justify-end" : "justify-start"
-      )}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        onActionMenu(message);
-      }}
-    >
+    <>
       <div
         className={cn(
-          "relative px-4 py-2 rounded-2xl max-w-[75%] shadow-sm transition-all duration-200",
-          "hover:scale-[1.01]",
-          isMe
-            ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-br-sm"
-            : "bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 rounded-bl-sm border dark:border-slate-700"
+          "flex w-full mb-2 group",
+          isMe ? "justify-end" : "justify-start"
         )}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          onActionMenu({ message, x: e.clientX, y: e.clientY });
+        }}
       >
-        {/* Reply Preview */}
-        {message.replyTo && (
-          <div className="text-xs opacity-70 border-l-2 pl-2 mb-1">
-            <span className="font-semibold">
-              {message.replyTo.senderName}
-            </span>
-            <p className="truncate">{message.replyTo.text}</p>
-          </div>
-        )}
-
-        {/* Message */}
-        {message.text?.startsWith("http") ? (
-          <img
-            src={message.text}
-            className="rounded-lg max-h-60"
-          />
-        ) : (
-          <p className="text-sm leading-relaxed">{message.text}</p>
-        )}
-
-        {/* Footer */}
-        <div className="flex justify-end items-center gap-1 mt-1">
-          <span className="text-[10px] opacity-70">
-            {message.timestamp?.toDate?.().toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </span>
-
-          {isMe && (
-            <span className="text-[10px]">
-              {message.status === "sent" && "✓"}
-              {message.status === "delivered" && "✓✓"}
-              {message.status === "seen" && "✓✓"}
-            </span>
-          )}
+        {/* Floating Reply Icon */}
+        <div className={cn(
+          "opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer p-2 mx-1 rounded-full hover:bg-white/10 active:scale-90",
+          isMe ? "order-1 mr-1" : "order-2 ml-1"
+        )} onClick={() => onReply && onReply(message)}>
+          <Reply size={16} className="text-gray-400 hover:text-white" />
         </div>
 
-        {/* Reactions */}
-        {message.reactions && (
-          <div className="flex gap-1 mt-1">
-            {Object.entries(message.reactions).map(
-              ([emoji, users]: any) => (
-                <span
-                  key={emoji}
-                  className="text-xs bg-black/10 px-2 py-[2px] rounded-full"
-                >
-                  {emoji} {users.length}
-                </span>
-              )
+        <div
+          onDoubleClick={handleDoubleClick}
+          className={cn(
+            "relative rounded-[18px] max-w-[75%] shadow-sm transition-all duration-200",
+            !isImage && !message.isDeleted ? "hover:scale-[1.01]" : "",
+            isImage && !message.isDeleted ? "p-1" : "px-4 py-2 text-sm leading-relaxed",
+            message.isDeleted 
+              ? "bg-transparent border border-dashed border-gray-400/50 text-gray-500 italic" 
+              : isMe
+                ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-br-sm order-2"
+                : "bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 rounded-bl-sm border dark:border-slate-700 order-1"
+          )}
+        >
+          {showHeartPop && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none animate-in zoom-in spin-in-12 duration-300">
+              <Heart size={isImage ? 80 : 48} className="text-red-500 drop-shadow-2xl fill-red-500 opacity-90" />
+            </div>
+          )}
+          {/* Reply Preview */}
+          {message.replyTo && (
+            <div className={cn("text-xs opacity-70 border-l-2 pl-2 mb-1", isImage ? "mx-2 mt-1" : "")}>
+              <span className="font-semibold">
+                {message.replyTo.senderName}
+              </span>
+              <p className="truncate">{message.replyTo.text}</p>
+            </div>
+          )}
+
+          {/* Message Content */}
+          {message.isDeleted ? (
+            <div className="flex items-center gap-2 opacity-70">
+              🚫 <span>This message was deleted</span>
+            </div>
+          ) : isImage ? (
+            <div className="relative group cursor-pointer flex" onClick={() => setShowImageModal(true)}>
+              <img
+                src={contentText}
+                className="rounded-[14px] max-h-[300px] w-auto object-cover"
+                alt={fileName}
+              />
+              <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-[14px]" />
+            </div>
+          ) : isAudio ? (
+            <div className="flex items-center gap-2 pr-4 pt-1 pb-1">
+              <audio controls src={contentText} className="h-10 w-52 opacity-90 scale-95 origin-left" />
+            </div>
+          ) : isPdfOrFile ? (
+            <div className="flex items-center gap-2 p-1">
+              <span className="text-xl">📄</span>
+              <a href={contentText} download={fileName} target={contentText.startsWith("data:") || contentText.startsWith("blob:") ? "_self" : "_blank"} rel="noopener noreferrer" className="font-medium underline hover:opacity-80 break-all">
+                {fileName}
+              </a>
+            </div>
+          ) : (
+            <p className="whitespace-pre-wrap break-words">{contentText}</p>
+          )}
+
+          {/* Footer */}
+          <div className={cn("flex justify-end items-center gap-1", isImage && !message.isDeleted ? "absolute bottom-2.5 right-2.5 bg-black/40 px-2 py-0.5 rounded-full text-white backdrop-blur-sm" : "mt-1")}>
+            {(message.starredBy?.length ?? 0) > 0 && !message.isDeleted && (
+              <Star size={10} className="text-yellow-400 fill-yellow-400 mr-0.5" />
+            )}
+            {message.isEdited && !message.isDeleted && (
+              <span className="text-[9px] opacity-60 mr-1 italic">edited</span>
+            )}
+            <span className={cn("text-[10px]", isImage && !message.isDeleted ? "opacity-100 font-medium" : "opacity-70")}>
+              {(message.timestamp?.toDate ? message.timestamp.toDate() : new Date()).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+
+            {isMe && (
+              <span className="text-[10px]">
+                {message.status === "sent" && "✓"}
+                {message.status === "delivered" && "✓✓"}
+                {message.status === "seen" && "✓✓"}
+              </span>
             )}
           </div>
-        )}
+
+          {/* Reactions */}
+          {message.reactions && (
+            <div className={cn("flex gap-1", isImage ? "absolute bottom-2.5 left-2.5" : "mt-1")}>
+              {Object.entries(message.reactions).map(
+                ([emoji, users]: any) => (
+                  <span
+                    key={emoji}
+                    className="text-xs bg-black/20 px-2 py-[2px] rounded-full backdrop-blur-sm text-white"
+                  >
+                    {emoji} {users.length}
+                  </span>
+                )
+              )}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Fullscreen Image Modal (WhatsApp-style) */}
+      {showImageModal && isImage && (
+        <div 
+          className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-sm flex flex-col pointer-events-auto transition-opacity"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent">
+            <div className="flex flex-col">
+              <span className="text-white font-medium text-lg">{message.senderName}</span>
+              <span className="text-white/70 text-sm">
+                {message.timestamp?.toDate?.().toLocaleTimeString()}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={handleDownload}
+                className="text-white opacity-80 hover:opacity-100 hover:bg-white/10 transition-all p-2.5 rounded-full"
+                title="Download"
+              >
+                <Download size={22} />
+              </button>
+              <button 
+                onClick={() => setShowImageModal(false)}
+                className="text-white opacity-80 hover:opacity-100 hover:bg-white/10 transition-all p-2.5 rounded-full"
+              >
+                <X size={22} />
+              </button>
+            </div>
+          </div>
+          
+          {/* Image Container */}
+          <div 
+            className="flex-1 flex items-center justify-center p-4 overflow-hidden"
+            onClick={() => setShowImageModal(false)}
+          >
+            <img
+              src={contentText}
+              className="max-w-full max-h-full object-contain cursor-default select-none shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+              alt="Expanded view"
+            />
+          </div>
+        </div>
+      )}
+    </>
   );
 }

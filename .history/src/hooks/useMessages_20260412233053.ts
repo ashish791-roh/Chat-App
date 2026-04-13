@@ -49,8 +49,6 @@ export function useMessages(chatId: string | null, myUid: string | null) {
           replyTo: data.replyTo ?? undefined,
           reactions: data.reactions ?? undefined,
           isDeleted: data.isDeleted ?? false,
-          isEdited: data.isEdited ?? false,
-          starredBy: data.starredBy ?? [],
           // ── Fix: map file metadata so ChatBubble can render correctly ──
           fileType: data.fileType ?? undefined,
           fileName: data.fileName ?? undefined,

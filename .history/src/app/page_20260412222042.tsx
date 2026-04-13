@@ -5,7 +5,7 @@ import {
   Send, Users, Phone, Video, X, Trash2, Reply,
   Settings, Search, UserPlus, Paperclip, File,
   Smile, Gift, MoreVertical, Menu, ChevronDown,
-  Mic, ImageIcon, Zap, Edit2, Pin, Star, Forward, Copy
+  Mic, ImageIcon, Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -13,6 +13,7 @@ import {
   serverTimestamp, Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 import ChatBubble from "@/components/ChatBubble";
 import ChatEmojiPicker from "@/components/EmojiPicker";
@@ -109,8 +110,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
-  const [activeMessage, setActiveMessage] = useState<{ message: Message; x: number; y: number } | null>(null);
+  const [activeMessage, setActiveMessage] = useState<Message | null>(null);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMediaOpen, setIsMediaOpen] = useState(false);
@@ -134,25 +134,17 @@ export default function ChatPage() {
   const userScrolledUpRef = useRef(false);
   const prevMsgCountRef = useRef(0);
 
-  // Audio Recording States
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<BlobPart[]>([]);
-  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   const currentUser = authUser
     ? {
-      uid: authUser.id,
-      displayName: authUser.name,
-      profilePic: (authUser as any).avatar ?? (authUser as any).profilePic ?? null,
-    }
+        uid: authUser.id,
+        displayName: authUser.name,
+        profilePic: (authUser as any).avatar ?? (authUser as any).profilePic ?? null,
+      }
     : null;
 
   usePresence(currentUser);
   const { friends, onlineStatusMap, myPhone } = useFriends(currentUser?.uid ?? null);
   const chats = useChats(currentUser?.uid ?? null, onlineStatusMap);
-  const currentActiveChat = activeChat ? chats.find(c => c.id === activeChat.id) || activeChat : null;
   const messages = useMessages(activeChat?.id ?? null, currentUser?.uid ?? null);
   useDeliveryStatus(activeChat?.id ?? null, currentUser?.uid ?? null);
 
@@ -263,37 +255,24 @@ export default function ChatPage() {
     const text = input.trim();
     setInput(""); setShowEmoji(false);
     const pendingReply = replyingTo; setReplyingTo(null);
-    const pendingEdit = editingMessage; setEditingMessage(null);
-    
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     socket.emit("stop_typing", { from: currentUser.uid, to: activeChat.id });
     userScrolledUpRef.current = false; setShowScrollBtn(false);
-    
     try {
       const chatId = activeChat.isGroup
         ? activeChat.id
         : await ensureDmChat(currentUser.uid, activeChat.id, activeChat.name);
-
-      if (pendingEdit) {
-        await updateDoc(doc(db, "chats", chatId, "messages", pendingEdit.id), {
-          text, isEdited: true
-        });
-        if (activeChat.lastMessage === pendingEdit.text) {
-           await updateDoc(doc(db, "chats", chatId), { lastMessage: text });
-        }
-      } else {
-        const payload: Record<string, any> = {
-          senderId: currentUser.uid, senderName: currentUser.displayName,
-          text, timestamp: serverTimestamp(), status: "sent", isDeleted: false,
-          ...(activeChat.isGroup ? { groupId: activeChat.id } : { receiverId: activeChat.id }),
-          ...(pendingReply ? { replyTo: { id: pendingReply.id, text: pendingReply.text, senderName: pendingReply.senderName } } : {}),
-        };
-        await addDoc(collection(db, "chats", chatId, "messages"), payload);
-        await updateDoc(doc(db, "chats", chatId), { lastMessage: text, lastMessageAt: serverTimestamp() });
-        socket.emit("send_message", { ...payload, chatId });
-      }
+      const payload: Record<string, any> = {
+        senderId: currentUser.uid, senderName: currentUser.displayName,
+        text, timestamp: serverTimestamp(), status: "sent", isDeleted: false,
+        ...(activeChat.isGroup ? { groupId: activeChat.id } : { receiverId: activeChat.id }),
+        ...(pendingReply ? { replyTo: { id: pendingReply.id, text: pendingReply.text, senderName: pendingReply.senderName } } : {}),
+      };
+      await addDoc(collection(db, "chats", chatId, "messages"), payload);
+      await updateDoc(doc(db, "chats", chatId), { lastMessage: text, lastMessageAt: serverTimestamp() });
+      socket.emit("send_message", { ...payload, chatId });
     } catch (err) { console.error(err); }
-  }, [input, currentUser?.uid, activeChat?.id, replyingTo, editingMessage]); // eslint-disable-line
+  }, [input, currentUser?.uid, activeChat?.id, replyingTo]); // eslint-disable-line
 
   const handleDeleteMessage = useCallback(async (msg: Message) => {
     if (!activeChat) return;
@@ -302,66 +281,47 @@ export default function ChatPage() {
     setActiveMessage(null);
   }, [activeChat?.id]); // eslint-disable-line
 
-  const handlePinMessage = async (msg: Message) => {
-    if (!activeChat) return;
-    try {
-      await updateDoc(doc(db, "chats", activeChat.id), {
-        pinnedMessage: { id: msg.id, text: msg.text, senderName: msg.senderName }
-      });
-    } catch(err) { console.error(err); }
-    setActiveMessage(null);
-  };
 
-  const handleUnpinMessage = async () => {
-    if (!activeChat) return;
-    try { await updateDoc(doc(db, "chats", activeChat.id), { pinnedMessage: null }); } 
-    catch(err) { console.error(err); }
-  };
+const handleReaction = useCallback(async (emoji: string) => {
+  if (!activeMessage || !currentUser || !activeChat) return;
+  
+  // Instant local haptic/UI feedback
+  setActiveMessage(null);
+  
+  const ref = doc(db, "chats", activeChat.id, "messages", activeMessage.id);
+  try {
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    
+    const curReactions: Record<string, string[]> = snap.data().reactions ?? {};
+    const existingUsers = curReactions[emoji] ?? [];
+    
+    let updated;
+    if (existingUsers.includes(currentUser.uid)) {
+      // Remove reaction if already exists
+      updated = existingUsers.filter(u => u !== currentUser.uid);
+    } else {
+      // Add reaction
+      updated = [...existingUsers, currentUser.uid];
+    }
+    
+    const newReactions = { ...curReactions, [emoji]: updated };
+    if (updated.length === 0) delete newReactions[emoji];
 
-  const handleStarMessage = async (msg: Message) => {
-    if (!activeChat || !currentUser) return;
-    try {
-      const ref = doc(db, "chats", activeChat.id, "messages", msg.id);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) return;
-      const currentStars = snap.data().starredBy ?? [];
-      const isStarred = currentStars.includes(currentUser.uid);
-      const newStars = isStarred 
-        ? currentStars.filter((id: string) => id !== currentUser.uid)
-        : [...currentStars, currentUser.uid];
-      await updateDoc(ref, { starredBy: newStars });
-    } catch(err) { console.error(err); }
-    setActiveMessage(null);
-  };
+    await updateDoc(ref, { reactions: newReactions });
+    
+    // Notify via socket for real-time visual pop
+    socket.emit("reaction_added", { 
+      chatId: activeChat.id, 
+      messageId: activeMessage.id, 
+      emoji, 
+      userId: currentUser.uid 
+    });
+  } catch (err) { 
+    console.error("Reaction failed:", err); 
+  }
+}, [activeMessage, currentUser, activeChat]);
 
-  const handleReaction = useCallback(async (emoji: string) => {
-    if (!activeMessage || !currentUser || !activeChat) return;
-    const ref = doc(db, "chats", activeChat.id, "messages", activeMessage.message.id);
-    try {
-      const snap = await getDoc(ref);
-      if (!snap.exists()) return;
-      const cur: Record<string, string[]> = snap.data().reactions ?? {};
-      const users = cur[emoji] ?? [];
-      await updateDoc(ref, {
-        reactions: { ...cur, [emoji]: users.includes(currentUser.uid) ? users.filter(u => u !== currentUser.uid) : [...users, currentUser.uid] },
-      });
-    } catch (err) { console.error(err); }
-    setActiveMessage(null);
-  }, [activeMessage?.message?.id, currentUser?.uid, activeChat?.id]); // eslint-disable-line
-
-  const handleQuickReact = useCallback(async (messageId: string, emoji: string) => {
-    if (!currentUser || !activeChat) return;
-    const ref = doc(db, "chats", activeChat.id, "messages", messageId);
-    try {
-      const snap = await getDoc(ref);
-      if (!snap.exists()) return;
-      const cur: Record<string, string[]> = snap.data().reactions ?? {};
-      const users = cur[emoji] ?? [];
-      await updateDoc(ref, {
-        reactions: { ...cur, [emoji]: users.includes(currentUser.uid) ? users.filter(u => u !== currentUser.uid) : [...users, currentUser.uid] },
-      });
-    } catch (err) { console.error(err); }
-  }, [currentUser?.uid, activeChat?.id]);
 
   const handleCreateGroup = useCallback(async (data: { name: string; members: string[] }) => {
     if (!currentUser) return;
@@ -380,112 +340,26 @@ export default function ChatPage() {
     const file = e.target.files?.[0];
     if (!file || !currentUser || !activeChat) return;
     e.target.value = "";
-
     setUploadProgress(0);
-    // Simulate upload delay
     let progress = 0;
-    const interval = setInterval(() => {
-      progress += 20;
-      setUploadProgress(progress);
+    const interval = setInterval(async () => {
+      progress += 20; setUploadProgress(progress);
+      if (progress >= 100) {
+        clearInterval(interval);
+        const isImage = file.type.startsWith("image/");
+        const text = isImage ? URL.createObjectURL(file) : `📄 ${file.name}`;
+        try {
+          const chatId = activeChat.isGroup ? activeChat.id : await ensureDmChat(currentUser.uid, activeChat.id, activeChat.name);
+          await addDoc(collection(db, "chats", chatId, "messages"), {
+            senderId: currentUser.uid, senderName: currentUser.displayName,
+            text, timestamp: serverTimestamp(), status: "sent", isDeleted: false,
+            ...(activeChat.isGroup ? { groupId: activeChat.id } : { receiverId: activeChat.id }),
+          });
+          await updateDoc(doc(db, "chats", chatId), { lastMessage: isImage ? "📷 Photo" : `📄 ${file.name}`, lastMessageAt: serverTimestamp() });
+        } catch (err) { console.error(err); }
+        setUploadProgress(null);
+      }
     }, 150);
-
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-
-    reader.onload = async () => {
-      clearInterval(interval);
-      setUploadProgress(100);
-      const base64Str = reader.result as string;
-      const isImage = file.type.startsWith("image/");
-      const isPdf = file.type === "application/pdf";
-      const fileType = isImage ? "image" : isPdf ? "pdf" : "file";
-
-      try {
-        const chatId = activeChat.isGroup ? activeChat.id : await ensureDmChat(currentUser.uid, activeChat.id, activeChat.name);
-        await addDoc(collection(db, "chats", chatId, "messages"), {
-          senderId: currentUser.uid, senderName: currentUser.displayName,
-          text: `FILE::${file.name}::${base64Str}`,
-          timestamp: serverTimestamp(), status: "sent", isDeleted: false,
-          ...(activeChat.isGroup ? { groupId: activeChat.id } : { receiverId: activeChat.id }),
-        });
-        const msgPreview = isImage ? "📷 Photo" : isPdf ? "📄 PDF" : `📄 ${file.name}`;
-        await updateDoc(doc(db, "chats", chatId), { lastMessage: msgPreview, lastMessageAt: serverTimestamp() });
-      } catch (err) { console.error(err); }
-
-      setTimeout(() => setUploadProgress(null), 300);
-    };
-
-    reader.onerror = () => {
-      console.error("Failed to read file");
-      clearInterval(interval);
-      setUploadProgress(null);
-    };
-  };
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-      
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        if (audioChunksRef.current.length === 0) return;
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        stream.getTracks().forEach(track => track.stop());
-
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = async () => {
-          const base64Audio = reader.result as string;
-          if (!currentUser || !activeChat) return;
-          try {
-            const chatId = activeChat.isGroup ? activeChat.id : await ensureDmChat(currentUser.uid, activeChat.id, activeChat.name);
-            await addDoc(collection(db, "chats", chatId, "messages"), {
-              senderId: currentUser.uid, senderName: currentUser.displayName,
-              text: `FILE::Audio Note::${base64Audio}`,
-              timestamp: serverTimestamp(), status: "sent", isDeleted: false,
-              ...(activeChat.isGroup ? { groupId: activeChat.id } : { receiverId: activeChat.id }),
-            });
-            await updateDoc(doc(db, "chats", chatId), { lastMessage: "🎤 Audio Note", lastMessageAt: serverTimestamp() });
-          } catch (err) { console.error(err); }
-        };
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-      setRecordingTime(0);
-      if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
-      recordingIntervalRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
-      }, 1000);
-    } catch (err) {
-      console.error("Microphone permission denied or err:", err);
-      alert("Microphone permission is required to send voice notes.");
-    }
-  };
-
-  const stopRecordingAndSend = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
-      setRecordingTime(0);
-    }
-  };
-
-  const cancelRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      audioChunksRef.current = []; // Dump data
-      setIsRecording(false);
-      if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
-      setRecordingTime(0);
-    }
   };
 
   const handleGiftSend = async (gift: GiftItem) => {
@@ -522,12 +396,20 @@ export default function ChatPage() {
   const handleInputChange = (val: string) => {
     setInput(val);
     if (!currentUser || !activeChat) return;
-    if (val.length > 0) {
-      socket.emit("typing", { from: currentUser.uid, to: activeChat.id });
+
+    if (val.trim().length > 0) {
+      // Improved: sends senderName so you can show "Ashish is typing..."
+      socket.emit("typing", { 
+        from: currentUser.uid, 
+        to: activeChat.id, 
+        senderName: currentUser.displayName 
+      });
+      
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(
-        () => socket.emit("stop_typing", { from: currentUser.uid, to: activeChat.id }), 2000
-      );
+      
+      typingTimeoutRef.current = setTimeout(() => {
+        socket.emit("stop_typing", { from: currentUser.uid, to: activeChat.id });
+      }, 3000); 
     } else {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       socket.emit("stop_typing", { from: currentUser.uid, to: activeChat.id });
@@ -600,63 +482,34 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Dynamic Context Menu */}
+      {/* Reaction / action modal */}
       {activeMessage && (
-        <div className="fixed inset-0 z-[110]" 
-          onClick={() => setActiveMessage(null)} 
-          onContextMenu={e => { e.preventDefault(); setActiveMessage(null) }}>
-          <div className="absolute glass-card rounded-2xl w-56 overflow-hidden shadow-2xl animate-in zoom-in-95 duration-100"
-            style={{ 
-              top: Math.min(activeMessage.y, window.innerHeight - 300), 
-              left: Math.min(activeMessage.x, window.innerWidth - 250),
-              boxShadow: "0 4px 30px rgba(0,0,0,0.5)" 
-            }}
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[110] flex items-center justify-center p-4"
+          onClick={() => setActiveMessage(null)}>
+          <div className="glass-card rounded-3xl w-full max-w-xs overflow-hidden shadow-2xl"
+            style={{ boxShadow: "0 0 60px rgba(108,99,255,0.2), var(--shadow-lg)" }}
             onClick={e => e.stopPropagation()}>
-            <div className="p-1.5 space-y-0.5">
-              <button onClick={() => { setReplyingTo(activeMessage.message); setActiveMessage(null); }}
-                className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-white/10 text-sm">
-                <Reply size={16} /> <span className="font-medium">Reply</span>
-              </button>
-
-              {/* Edit Message */}
-              {activeMessage.message.isMe && (
-                <button onClick={() => { 
-                    setEditingMessage(activeMessage.message); 
-                    setInput(activeMessage.message.text); 
-                    setActiveMessage(null); 
-                  }}
-                  className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-white/10 text-sm">
-                  <Edit2 size={16} /> <span className="font-medium">Edit</span>
+            {/* Reactions */}
+            <div className="flex justify-around items-center p-5" style={{ borderBottom: "1px solid var(--border)" }}>
+              {["❤️", "👍", "😂", "😮", "😢", "🔥"].map(emoji => (
+                <button key={emoji} onClick={() => handleReaction(emoji)}
+                  className="text-2xl hover:scale-125 transition-all duration-200 active:scale-90 p-1 rounded-full hover:bg-white/10">
+                  {emoji}
                 </button>
-              )}
-
-              {/* Pin Message */}
-              <button onClick={() => handlePinMessage(activeMessage.message)}
-                className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-white/10 text-sm">
-                <Pin size={16} /> <span className="font-medium">Pin to Chat</span>
+              ))}
+            </div>
+            <div className="p-3 space-y-1">
+              <button onClick={() => { setReplyingTo(activeMessage); setActiveMessage(null); }}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl transition-colors hover:bg-white/5"
+                style={{ color: "var(--text-primary)" }}>
+                <Reply size={18} style={{ color: "var(--accent-2)" }} />
+                <span className="font-semibold">Reply</span>
               </button>
-
-              {/* Star Message */}
-              <button onClick={() => handleStarMessage(activeMessage.message)}
-                className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-white/10 text-sm">
-                <Star size={16} /> <span className="font-medium">Star Message</span>
+              <button onClick={() => handleDeleteMessage(activeMessage)}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl transition-colors hover:bg-red-500/10 text-red-400">
+                <Trash2 size={18} />
+                <span className="font-semibold">Delete for everyone</span>
               </button>
-
-              {/* Forward Message */}
-              <button onClick={() => { setActiveMessage(null); }}
-                className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-white/10 text-sm">
-                <Forward size={16} /> <span className="font-medium">Forward</span>
-              </button>
-
-              <div className="h-[1px] w-full bg-white/10 my-1"/>
-
-              {/* Delete */}
-              {activeMessage.message.isMe && (
-                <button onClick={() => handleDeleteMessage(activeMessage.message)}
-                  className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-red-500/10 text-red-400 text-sm">
-                  <Trash2 size={16} /> <span className="font-medium">Delete for Everyone</span>
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -850,7 +703,7 @@ export default function ChatPage() {
             {[
               { icon: Phone, action: () => activeChat && !activeChat.isGroup && startCall(activeChat.id, activeChat.name, activePeerPhone ?? undefined, false), disabled: !canCall, color: "hover:text-emerald-400" },
               { icon: Video, action: () => activeChat && !activeChat.isGroup && startCall(activeChat.id, activeChat.name, activePeerPhone ?? undefined, true), disabled: !canCall, color: "hover:text-blue-400" },
-              { icon: Search, action: () => { }, disabled: false, color: "hover:text-violet-400" },
+              { icon: Search, action: () => {}, disabled: false, color: "hover:text-violet-400" },
               { icon: MoreVertical, action: () => setIsMediaOpen(true), disabled: false, color: "hover:text-violet-400" },
             ].map(({ icon: Icon, action, disabled, color }, i) => (
               <button key={i} onClick={action} disabled={disabled}
@@ -864,31 +717,8 @@ export default function ChatPage() {
 
         {/* ── Messages ── */}
         <div className="flex-1 relative overflow-hidden">
-          {/* Pinned Message Banner */}
-          {currentActiveChat?.pinnedMessage && (
-            <div className="absolute top-0 left-0 right-0 z-20 bg-black/40 backdrop-blur-xl px-5 py-2.5 flex items-center justify-between shadow-sm cursor-pointer hover:bg-white/5 transition-colors border-b border-white/10"
-                 onClick={() => {
-                   const el = document.getElementById(`msg-${currentActiveChat.pinnedMessage?.id}`);
-                   if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-                 }}>
-              <div className="flex items-center gap-3 overflow-hidden">
-                <Pin size={16} className="text-violet-400 shrink-0" />
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-violet-400">{currentActiveChat.pinnedMessage.senderName}</span>
-                  <span className="text-xs text-white/80 truncate font-medium">{currentActiveChat.pinnedMessage.text}</span>
-                </div>
-              </div>
-              <button 
-                onClick={(e) => { e.stopPropagation(); handleUnpinMessage(); }}
-                className="p-2 hover:bg-white/10 rounded-full transition-colors shrink-0 text-white/50 hover:text-white"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
-
           {/* Subtle chat background pattern */}
-          <div className="absolute inset-0 opacity-[0.015] z-0"
+          <div className="absolute inset-0 opacity-[0.015]"
             style={{ backgroundImage: "radial-gradient(circle, #6c63ff 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
 
           <div
@@ -912,41 +742,17 @@ export default function ChatPage() {
               </div>
             )}
 
-            {messages.map((msg, index) => {
-              const prevMsg = messages[index - 1];
-              const getValidDate = (m: any) => m?.timestamp?.toDate ? m.timestamp.toDate() : new Date();
-              const curDate = getValidDate(msg);
-              const prevDate = prevMsg ? getValidDate(prevMsg) : new Date(0);
-              const isSameDay = (d1: Date, d2: Date) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
-              const showDivider = !prevMsg || !isSameDay(curDate, prevDate);
-
-              let dateText = curDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-              const today = new Date();
-              const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
-              if (isSameDay(curDate, today)) dateText = "Today";
-              else if (isSameDay(curDate, yesterday)) dateText = "Yesterday";
-
-              return (
-                <div key={msg.id} id={`msg-${msg.id}`}>
-                  {showDivider && (
-                    <div className="flex justify-center my-4 sticky top-2 z-[5] pointer-events-none">
-                      <span className="text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/5 drop-shadow-md text-white/80">
-                        {dateText}
-                      </span>
-                    </div>
-                  )}
-                  <div className={cn("flex flex-col mb-1", msg.isMe ? "animate-msg-right" : "animate-msg-left")}>
-                    {activeChat?.isGroup && !msg.isMe && (
-                      <span className="text-[10px] font-bold uppercase tracking-wider mb-1 ml-1"
-                        style={{ color: "var(--accent-2)" }}>
-                        {msg.senderName}
-                      </span>
-                    )}
-                    <ChatBubble message={msg} onReply={(m: Message) => setReplyingTo(m)} onActionMenu={setActiveMessage} onReact={handleQuickReact} />
-                  </div>
-                </div>
-              );
-            })}
+            {messages.map((msg) => (
+              <div key={msg.id} className={cn("flex flex-col", msg.isMe ? "animate-msg-right" : "animate-msg-left")}>
+                {activeChat?.isGroup && !msg.isMe && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider mb-1 ml-1"
+                    style={{ color: "var(--accent-2)" }}>
+                    {msg.senderName}
+                  </span>
+                )}
+                <ChatBubble message={msg} onReply={(m) => setReplyingTo(m)} onActionMenu={setActiveMessage} />
+              </div>
+            ))}
 
             {isOtherUserTyping && activeChat && (
               <div className="flex items-center gap-3 mb-2">
@@ -1023,70 +829,39 @@ export default function ChatPage() {
             replyingTo && "rounded-tl-none rounded-tr-none border-t-0")}
             style={{ background: "var(--bg-elevated)", borderColor: "var(--border)" }}>
 
-            {isRecording ? (
-              <div className="flex items-center flex-1 py-1 px-3 animate-in fade-in slide-in-from-right-4 duration-300">
-                <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse mr-3 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-                <span className="text-red-400 font-mono tracking-widest font-medium">
-                  {Math.floor(recordingTime / 60).toString().padStart(2, "0")}:
-                  {(recordingTime % 60).toString().padStart(2, "0")}
-                </span>
-                <span className="ml-3 text-xs opacity-60 typing-dot">Recording</span>
-                <div className="flex-1" />
-                <button onClick={cancelRecording} className="text-gray-400 hover:text-red-400 mr-4 transition-colors p-2" title="Cancel">
-                  <Trash2 size={20} />
-                </button>
-                <button onClick={stopRecordingAndSend} className="w-10 h-10 flex items-center justify-center rounded-xl text-white bg-red-500 hover:bg-red-600 transition-all active:scale-90 shadow-lg shadow-red-500/30">
-                  <Send size={18} />
-                </button>
-              </div>
-            ) : (
-              <>
-                {/* Tool buttons */}
-                {[
-                  { icon: Paperclip, action: () => fileInputRef.current?.click(), title: "Attach file" },
-                  { icon: Smile, action: () => { setShowEmoji(!showEmoji); setShowGif(false); }, title: "Emoji" },
-                  { icon: Gift, action: () => { setShowEmoji(false); setIsGiftModalOpen(true); }, title: "Gift" },
-                ].map(({ icon: Icon, action, title }) => (
-                  <button key={title} type="button" onClick={action} title={title}
-                    className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/8 active:scale-90"
-                    style={{ color: "var(--text-muted)" }}>
-                    <Icon size={20} />
-                  </button>
-                ))}
+            {/* Tool buttons */}
+            {[
+              { icon: Paperclip, action: () => fileInputRef.current?.click(), title: "Attach file" },
+              { icon: Smile, action: () => { setShowEmoji(!showEmoji); setShowGif(false); }, title: "Emoji" },
+              { icon: Gift, action: () => { setShowEmoji(false); setIsGiftModalOpen(true); }, title: "Gift" },
+            ].map(({ icon: Icon, action, title }) => (
+              <button key={title} type="button" onClick={action} title={title}
+                className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/8 active:scale-90"
+                style={{ color: "var(--text-muted)" }}>
+                <Icon size={20} />
+              </button>
+            ))}
 
-                <input
-                  type="text"
-                  value={input}
-                  onChange={e => handleInputChange(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={activeChat ? "Write a message…" : "Select a chat to start"}
-                  disabled={!activeChat}
-                  className="flex-1 bg-transparent px-2 py-2 text-sm outline-none"
-                  style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
-                />
+            <input
+              type="text"
+              value={input}
+              onChange={e => handleInputChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={activeChat ? "Write a message…" : "Select a chat to start"}
+              disabled={!activeChat}
+              className="flex-1 bg-transparent px-2 py-2 text-sm outline-none"
+              style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+            />
 
-                {/* Send / Mic Button */}
-                {input.trim() ? (
-                  <button
-                    onClick={() => handleSendMessage()}
-                    disabled={!activeChat}
-                    className="btn-send w-10 h-10 flex items-center justify-center rounded-xl text-white transition-all active:scale-90"
-                    style={{ background: "var(--grad-accent)" }}
-                  >
-                    <Send size={17} fill="currentColor" />
-                  </button>
-                ) : (
-                  <button
-                    onClick={startRecording}
-                    disabled={!activeChat}
-                    className="w-10 h-10 flex items-center justify-center rounded-xl text-white transition-all hover:bg-white/10 active:scale-90"
-                    style={{ background: "var(--bg-surface)" }}
-                  >
-                    <Mic size={18} style={{ color: "var(--text-secondary)" }} />
-                  </button>
-                )}
-              </>
-            )}
+            {/* Send */}
+            <button
+              onClick={() => handleSendMessage()}
+              disabled={!input.trim() || !activeChat}
+              className="btn-send w-10 h-10 flex items-center justify-center rounded-xl text-white transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed"
+              style={{ background: input.trim() && activeChat ? "var(--grad-accent)" : "var(--bg-surface)" }}
+            >
+              <Send size={17} fill={input.trim() && activeChat ? "currentColor" : "none"} />
+            </button>
           </div>
         </div>
       </section>

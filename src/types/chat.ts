@@ -12,6 +12,11 @@ export interface Chat {
   status: string;
   isOnline?: boolean;
   members?: string[];
+  pinnedMessage?: {
+    id: string;
+    text: string;
+    senderName: string;
+  } | null;
 }
 
 // ─── Call ─────────────────────────────────────────────

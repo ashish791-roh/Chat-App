@@ -35,6 +35,7 @@ export function useChats(
           lastMessage: data.lastMessage ?? "",
           lastMessageAt: data.lastMessageAt ?? null,
           members: data.members ?? [],
+          pinnedMessage: data.pinnedMessage ?? null,
           isOnline: false,
           status: "Offline",
         });

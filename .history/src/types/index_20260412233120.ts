@@ -40,8 +40,6 @@ export interface Message {
   replyTo?: { id: string; text: string; senderName: string };
   reactions?: Record<string, string[]>;
   isDeleted?: boolean;
-  isEdited?: boolean;
-  starredBy?: string[];
   // ── File / media fields ──────────────────────────────────────────────────
   fileType?: "image" | "pdf" | "file";
   fileName?: string;
