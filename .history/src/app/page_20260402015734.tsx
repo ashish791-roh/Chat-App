@@ -149,7 +149,7 @@ export default function ChatPage() {
   const currentUser = {
     uid: user.id,
     displayName: user.name,
-    profilePic: user.avatar
+    avatar: user.avatar
   };
 
   return (

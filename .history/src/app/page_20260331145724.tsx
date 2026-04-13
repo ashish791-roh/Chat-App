@@ -108,7 +108,7 @@ export default function ChatPage() {
   const currentUser = authUser ? {
     uid: authUser.id,
     displayName: authUser.name,
-    profilePic: authUser.avatar || null
+    avatar: authUser.avatar || null
   } : null;
 
   const handleInputChange = (val: string) => {
@@ -300,9 +300,9 @@ export default function ChatPage() {
         <div className="p-4 border-t dark:border-slate-800 bg-white dark:bg-slate-900">
           <div onClick={() => setIsProfileOpen(true)} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer group">
             <div className="relative">
-              {currentUser.profilePic ? (
+              {currentUser.avatar ? (
                 <img 
-                  src={currentUser.profilePic} 
+                  src={currentUser.avatar} 
                   className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm" 
                   alt="Me" 
                 />

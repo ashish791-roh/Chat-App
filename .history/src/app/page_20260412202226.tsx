@@ -33,7 +33,7 @@ import { useCall } from "@/hooks/useCall";
 import { socket } from "@/lib/socket";
 import { ensureDmChat, cn } from "@/lib/chatHelpers";
 import { Message, UserProfile } from "@/types";
-import { Chat } from "@/types/chat";
+import { Chat } from "@/types";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -70,7 +70,7 @@ export default function ChatPage() {
     ? {
         uid: authUser.id,
         displayName: authUser.name,
-        profilePic: (authUser as any).avatar ?? (authUser as any).profilePic ?? null,
+        avatar: (authUser as any).avatar ?? (authUser as any).avatar ?? null,
       }
     : null;
 

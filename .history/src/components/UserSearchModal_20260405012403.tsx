@@ -6,7 +6,7 @@ import {
   collection, query, where, getDocs, limit,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { UserProfile } from "@/types/chat";
+import { UserProfile } from "@/types";
 import { cn } from "@/lib/chatHelpers";
 
 interface UserSearchModalProps {

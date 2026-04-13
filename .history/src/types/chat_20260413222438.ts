@@ -1,8 +1,28 @@
 import { Timestamp } from "firebase/firestore";
-import { UserProfile, Message } from "./index";
 
-// Re-export so consumers can import from either path
-export type { Message, UserProfile };
+// ✅ ADD THIS (IMPORTANT)
+export interface UserProfile {
+  uid: string;
+  displayName: string;
+  phoneNumber?: string;
+  avatar?: string | null;
+  isOnline?: boolean;
+}
+
+// ✅ ADD THIS (IMPORTANT)
+export interface Message {
+  id: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  timestamp?: Timestamp;
+  status?: "sent" | "delivered" | "seen";
+  isDeleted?: boolean;
+  fileType?: string;
+  fileName?: string;
+  reactions?: Record<string, string[]>;
+  isMe?: boolean;
+}
 
 // ─── Chat ─────────────────────────────────────────────
 
@@ -15,6 +35,11 @@ export interface Chat {
   status: string;
   isOnline?: boolean;
   members?: string[];
+  pinnedMessage?: {
+    id: string;
+    text: string;
+    senderName: string;
+  } | null;
 }
 
 // ─── Call ─────────────────────────────────────────────

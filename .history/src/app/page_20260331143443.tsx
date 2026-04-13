@@ -50,7 +50,7 @@ export default function ChatPage() {
   const [currentUser, setCurrentUser] = useState({
     uid: "me",
     displayName: "Ashish Rohilla",
-    profilePic: null // Set to a URL string to see the image
+    avatar: null // Set to a URL string to see the image
   });
 
   // Chat & Contact States
@@ -117,7 +117,7 @@ export default function ChatPage() {
     setCurrentUser({
       uid: parsedUser.uid || "me",
       displayName: parsedUser.displayName || "Ashish Rohilla",
-      profilePic: parsedUser.photoURL || null // Ensure your login/signup saves photoURL
+      avatar: parsedUser.photoURL || null // Ensure your login/signup saves photoURL
     });
   }
 }, []);
@@ -318,9 +318,9 @@ export default function ChatPage() {
   <div onClick={() => setIsProfileOpen(true)} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer group">
      <div className="relative">
         {/* This is the key part that switches between Image and Initial */}
-        {currentUser.profilePic ? (
+        {currentUser.avatar ? (
             <img 
-              src={currentUser.profilePic} 
+              src={currentUser.avatar} 
               className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm" 
               alt="Me" 
             />

@@ -9,7 +9,7 @@ import {
   FileText,
   Download,
 } from "lucide-react";
-import { Message } from "@/types/chat";
+import { Message } from "@/types";
 
 function cn(...inputs: string[]) {
   return inputs.filter(Boolean).join(" ");

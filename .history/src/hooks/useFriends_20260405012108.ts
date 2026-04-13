@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { UserProfile, OnlineStatusMap } from "@/types/chat";
+import { UserProfile, OnlineStatusMap } from "@/types";
 
 interface UseFriendsResult {
   friends: UserProfile[];

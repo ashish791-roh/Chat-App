@@ -7,7 +7,7 @@ import { db } from "@/lib/firebase";
 interface PresenceUser {
   uid: string;
   displayName: string;
-  profilePic?: string | null;
+  avatar?: string | null;
 }
 
 export function usePresence(user: PresenceUser | null) {
@@ -21,7 +21,7 @@ export function usePresence(user: PresenceUser | null) {
             isOnline,
             lastSeen: serverTimestamp(),
             displayName: user.displayName,
-            ...(user.profilePic ? { avatar: user.profilePic } : {}),
+            ...(user.avatar ? { avatar: user.avatar } : {}),
           },
           { merge: true }
         );

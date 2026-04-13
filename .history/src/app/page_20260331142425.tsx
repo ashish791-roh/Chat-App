@@ -233,7 +233,7 @@ export default function ChatPage() {
       const [currentUser, setCurrentUser] = useState({
   uid: "me",
   displayName: "Ashish Rohilla",
-  profilePic: null // Add your image URL here or keep null for fallback
+  avatar: null // Add your image URL here or keep null for fallback
 });
 
       {/* LONG-PRESS MENU */}

@@ -5,7 +5,7 @@ import {
   collection, query, where, orderBy, onSnapshot,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Chat, OnlineStatusMap } from "@/types/chat";
+import { Chat, OnlineStatusMap } from "@/types";
 
 export function useChats(
   myUid: string | null,

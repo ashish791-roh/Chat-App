@@ -37,7 +37,7 @@ import { useDeliveryStatus } from "@/hooks/useDeliveryStatus";
 import { socket } from "@/lib/socket";
 import { ensureDmChat, cn } from "@/lib/chatHelpers";
 import { Message, UserProfile } from "@/types";
-import { Chat } from "@/types/chat";
+import { Chat } from "@/types";
 
 // ── Avatar component ──────────────────────────────────────────────────────
 function Avatar({
@@ -137,7 +137,7 @@ export default function ChatPage() {
     ? {
         uid: authUser.id,
         displayName: authUser.name,
-        profilePic: (authUser as any).avatar ?? (authUser as any).profilePic ?? null,
+        avatar: (authUser as any).avatar ?? (authUser as any).avatar ?? null,
       }
     : null;
 
@@ -587,7 +587,7 @@ export default function ChatPage() {
             className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-colors hover:bg-white/5"
             onClick={() => setIsProfileOpen(true)}
           >
-            <Avatar name={currentUser.displayName} size="sm" isOnline src={currentUser.profilePic} />
+            <Avatar name={currentUser.displayName} size="sm" isOnline src={currentUser.avatar} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
                 {currentUser.displayName}

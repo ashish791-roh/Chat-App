@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { X, Phone } from "lucide-react";
-import { UserProfile } from "@/types/chat";
+import { UserProfile } from "@/types";
 import { cn } from "@/lib/chatHelpers";
 
 interface CreateGroupModalProps {

@@ -43,7 +43,7 @@ import { useDeliveryStatus } from "@/hooks/useDeliveryStatus";
 import { socket } from "@/lib/socket";
 import { ensureDmChat, cn } from "@/lib/chatHelpers";
 import { Message, UserProfile } from "@/types";
-import { Chat } from "@/types/chat";
+import { Chat } from "@/types";
 
 /* ================== AVATAR ================== */
 function Avatar({ name, isOnline, src }: any) {

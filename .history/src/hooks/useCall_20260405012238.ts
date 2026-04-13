@@ -8,7 +8,7 @@ import {
   addStreamToPeer,
   stopStream,
 } from "@/lib/webrtc";
-import { CallState, ActiveCall } from "@/types/chat";
+import { CallState, ActiveCall } from "@/types";
 
 interface UseCallOptions {
   myUid: string;

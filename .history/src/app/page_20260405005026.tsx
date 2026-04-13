@@ -537,7 +537,7 @@ const [searchLoading, setSearchLoading] = useState(false);
     ? {
         uid: authUser.id,
         displayName: authUser.name,
-        profilePic: (authUser as any).avatar ?? (authUser as any).profilePic ?? null,
+        avatar: (authUser as any).avatar ?? (authUser as any).avatar ?? null,
       }
     : null;
 
@@ -688,7 +688,7 @@ const [searchLoading, setSearchLoading] = useState(false);
             isOnline,
             lastSeen: serverTimestamp(),
             displayName: currentUser.displayName,
-            ...(currentUser.profilePic ? { avatar: currentUser.profilePic } : {}),
+            ...(currentUser.avatar ? { avatar: currentUser.avatar } : {}),
           },
           { merge: true }
         );
@@ -1345,9 +1345,9 @@ const [searchLoading, setSearchLoading] = useState(false);
             onClick={() => setIsProfileOpen(true)}
           >
             <div className="relative">
-              {currentUser.profilePic ? (
+              {currentUser.avatar ? (
                 <img
-                  src={currentUser.profilePic}
+                  src={currentUser.avatar}
                   className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm"
                   alt="Me"
                   onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}

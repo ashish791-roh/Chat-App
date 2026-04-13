@@ -236,8 +236,8 @@ export default function ChatPage() {
     ? {
         uid: authUser.id,
         displayName: authUser.name,
-        // ✅ SAFE: only read profilePic if it exists on the auth user object
-        profilePic: (authUser as any).avatar ?? (authUser as any).profilePic ?? null,
+        // ✅ SAFE: only read avatar if it exists on the auth user object
+        avatar: (authUser as any).avatar ?? (authUser as any).avatar ?? null,
       }
     : null;
 
@@ -763,13 +763,13 @@ export default function ChatPage() {
             className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer group"
           >
             <div className="relative">
-              {currentUser.profilePic ? (
+              {currentUser.avatar ? (
                 <img
-                  src={currentUser.profilePic}
+                  src={currentUser.avatar}
                   className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm"
                   alt="Me"
                   onError={(e) => {
-                    // ✅ Safe fallback — never crashes if profilePic URL is invalid
+                    // ✅ Safe fallback — never crashes if avatar URL is invalid
                     (e.target as HTMLImageElement).style.display = "none";
                   }}
                 />

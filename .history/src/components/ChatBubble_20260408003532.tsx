@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Check, CheckCheck, Reply, Trash2, File } from "lucide-react";
-import { Message } from "@/types/chat";
+import { Message } from "@/types";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 

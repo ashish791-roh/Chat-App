@@ -32,7 +32,7 @@ import { useCall } from "@/hooks/useCall";
 
 import { socket } from "@/lib/socket";
 import { ensureDmChat, cn } from "@/lib/chatHelpers";
-import { Message, UserProfile } from "@/types/chat";
+import { Message, UserProfile } from "@/types";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -67,7 +67,7 @@ export default function ChatPage() {
     ? {
         uid: authUser.id,
         displayName: authUser.name,
-        profilePic: (authUser as any).avatar ?? (authUser as any).profilePic ?? null,
+        avatar: (authUser as any).avatar ?? (authUser as any).avatar ?? null,
       }
     : null;
 
@@ -426,8 +426,8 @@ export default function ChatPage() {
         <div className="p-4 border-t dark:border-slate-800 bg-white dark:bg-slate-900">
           <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer group" onClick={() => setIsProfileOpen(true)}>
             <div className="relative shrink-0">
-              {currentUser.profilePic ? (
-                <img src={currentUser.profilePic} className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm" alt="Me"
+              {currentUser.avatar ? (
+                <img src={currentUser.avatar} className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm" alt="Me"
                   onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
               ) : (
                 <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md">

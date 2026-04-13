@@ -5,7 +5,7 @@ import {
   collection, query, orderBy, onSnapshot, Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Message } from "@/types/chat";
+import { Message } from "@/types";
 
 export function useMessages(chatId: string | null, myUid: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);

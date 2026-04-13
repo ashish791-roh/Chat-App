@@ -173,7 +173,7 @@ useEffect(() => {
   const currentUser = authUser ? {
     uid: authUser.id,
     displayName: authUser.name,
-    profilePic: authUser.avatar || null
+    avatar: authUser.avatar || null
   } : null;
 
   const handleInputChange = (val: string) => {
@@ -362,8 +362,8 @@ useEffect(() => {
         <div className="p-4 border-t dark:border-slate-800 bg-white dark:bg-slate-900">
           <div onClick={() => setIsProfileOpen(true)} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer group">
             <div className="relative">
-              {currentUser.profilePic ? (
-                <img src={currentUser.profilePic} className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm" alt="Me" />
+              {currentUser.avatar ? (
+                <img src={currentUser.avatar} className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm" alt="Me" />
               ) : (
                 <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md">
                   {currentUser.displayName.charAt(0)}

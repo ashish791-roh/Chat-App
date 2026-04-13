@@ -27,7 +27,7 @@ import { useMessages } from "@/hooks/useMessages";
 import { useCall } from "@/hooks/useCall";
 import { socket } from "@/lib/socket";
 import { ensureDmChat, getDmId, cn } from "@/lib/chatHelpers";
-import { Chat, Message, UserProfile } from "@/types/chat";
+import { Chat, Message, UserProfile } from "@/types";
 
 // Get the other user's UID from a DM chat's members array (FIXED)
 function peerUid(chat: Chat, myUid: string): string {
@@ -62,7 +62,7 @@ export default function ChatPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const currentUser = authUser
-    ? { uid: authUser.id, displayName: authUser.name, profilePic: (authUser as any).avatar ?? null }
+    ? { uid: authUser.id, displayName: authUser.name, avatar: (authUser as any).avatar ?? null }
     : null;
 
   usePresence(currentUser);
@@ -286,8 +286,8 @@ export default function ChatPage() {
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
           <button className="flex items-center gap-2.5 group" onClick={() => setIsProfileOpen(true)}>
             <div className="relative">
-              {currentUser.profilePic
-                ? <img src={currentUser.profilePic} className="w-9 h-9 rounded-full object-cover" style={{ border: "2px solid #5b9bd6" }} alt="me" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              {currentUser.avatar
+                ? <img src={currentUser.avatar} className="w-9 h-9 rounded-full object-cover" style={{ border: "2px solid #5b9bd6" }} alt="me" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
                 : <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ background: "#5b9bd6" }}>{currentUser.displayName.charAt(0).toUpperCase()}</div>
               }
               <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 bg-emerald-400" style={{ borderColor: "#17212b" }} />

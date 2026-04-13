@@ -16,7 +16,7 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { Message } from "@/types/chat";
+import { Message } from "@/types";
 
 // ── ID ───────────────────────────────
 export const getConversationId = (uid1: string, uid2: string): string =>

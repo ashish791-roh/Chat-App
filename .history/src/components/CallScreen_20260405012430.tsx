@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Phone, PhoneOff, Mic, MicOff, VideoOff, Camera, Video } from "lucide-react";
-import { CallState, ActiveCall } from "@/types/chat";
+import { CallState, ActiveCall } from "@/types";
 import { cn } from "@/lib/chatHelpers";
 
 interface CallScreenProps {

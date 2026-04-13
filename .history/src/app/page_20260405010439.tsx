@@ -103,7 +103,7 @@ export default function ChatPage() {
   const currentUser = authUser ? {
     uid: authUser.id,
     displayName: authUser.name,
-    profilePic: authUser.avatar || null
+    avatar: authUser.avatar || null
   } : null;
 
   // 1. Fetch all users for "Friends" list
@@ -301,7 +301,7 @@ export default function ChatPage() {
         <div className="p-4 border-t dark:border-slate-800 bg-white dark:bg-slate-900">
           <div onClick={() => setIsProfileOpen(true)} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer group">
             <div className="relative">
-              {currentUser.profilePic ? <img src={currentUser.profilePic} className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm" alt="Me" /> : <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md">{currentUser.displayName.charAt(0)}</div>}
+              {currentUser.avatar ? <img src={currentUser.avatar} className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 shadow-sm" alt="Me" /> : <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md">{currentUser.displayName.charAt(0)}</div>}
               <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
             </div>
             <div className="flex-1 min-w-0"><div className="text-xs font-bold truncate text-gray-800 dark:text-white">{currentUser.displayName}</div><p className="text-[9px] text-gray-400 uppercase font-bold tracking-tight">Online</p></div>

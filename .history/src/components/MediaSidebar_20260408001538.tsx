@@ -8,7 +8,7 @@ import {
   File,
   ChevronRight,
 } from "lucide-react";
-import { Message } from "@/types/chat";
+import { Message } from "@/types";
 
 // Helper for Tailwind classes
 function cn(...inputs: string[]) {

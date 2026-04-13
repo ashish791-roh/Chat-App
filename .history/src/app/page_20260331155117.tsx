@@ -35,7 +35,7 @@ export default function ChatPage() {
     ? {
         uid: authUser.id,
         displayName: authUser.name,
-        profilePic: authUser.avatar || null,
+        avatar: authUser.avatar || null,
       }
     : null;
 
