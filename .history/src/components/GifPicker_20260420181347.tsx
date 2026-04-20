@@ -170,6 +170,28 @@ export default function GifPicker({
               e.preventDefault();
               onGifClick(gif.images.fixed_height.url);
             }}
+            renderGif={(gif, i) => {
+              const url = gif.images.fixed_height.url;
+              const isFav = favorites.includes(url);
+
+              return (
+                <div key={i} className="relative group">
+                  <img
+                    src={url}
+                    className="w-full rounded cursor-pointer"
+                    onClick={() => onGifClick(url)}
+                  />
+
+                  {/* ❤️ Favorite button */}
+                  <button
+                    onClick={() => toggleFavorite(url)}
+                    className="absolute top-1 right-1 text-white text-xs bg-black/50 px-1 rounded opacity-0 group-hover:opacity-100"
+                  >
+                    {isFav ? "❤️" : "🤍"}
+                  </button>
+                </div>
+              );
+            }}
           />
         </div>
       )}

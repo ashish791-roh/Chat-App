@@ -6,7 +6,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Message } from "@/types";
-import { decryptMessage } from "@/lib/encryption";
+import { encryptMessage } from "@/lib/encryption";
 
 export function useMessages(chatId: string | null, myUid: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -40,7 +40,7 @@ export function useMessages(chatId: string | null, myUid: string | null) {
           senderName: data.senderName ?? "Unknown",
           receiverId: data.receiverId ?? undefined,
           groupId: data.groupId ?? undefined,
-          text: data.text ? decryptMessage(data.text) : "",
+          text: data.text ?? "",
           timestamp:
             data.timestamp instanceof Timestamp
               ? data.timestamp.toDate().toISOString()

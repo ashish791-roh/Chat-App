@@ -10,8 +10,6 @@ import {
   ImagePlay
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useFCM }              from "@/hooks/useFCM";
-import NotificationToast       from "@/components/NotificationToast"
 import {
   collection, doc, addDoc, updateDoc,arrayUnion, getDoc,
   serverTimestamp, Timestamp, increment
@@ -40,7 +38,6 @@ import { useChats } from "@/hooks/useChats";
 import { useMessages } from "@/hooks/useMessages";
 import { useCall } from "@/hooks/useCall";
 import { useDeliveryStatus } from "@/hooks/useDeliveryStatus";
-import { encryptMessage } from "@/lib/encryption";
 import GifPicker from "@/components/GifPicker";
 import EmojiPicker from "@/components/EmojiPicker";
 
@@ -228,14 +225,6 @@ export default function ChatPage() {
     }
   });
 
-  const { notification, clearNotification } = useFCM(
-    currentUser?.uid ?? null,
-    (chatId) => {
-      const target = chats.find((c) => c.id === chatId);
-      if (target) setActiveChat(target);
-    }
-  );
-
   useEffect(() => {
     if (!activeChat && chats.length > 0) setActiveChat(chats[0]);
   }, [chats, activeChat]);
@@ -364,10 +353,10 @@ export default function ChatPage() {
           ...(activeChat.isGroup ? { groupId: activeChat.id } : { receiverId: activeChat.id }),
           ...(pendingReply ? { replyTo: { id: pendingReply.id, text: pendingReply.text, senderName: pendingReply.senderName } } : {}),
         };
-        const encryptedText = encryptMessage(text);
-        await addDoc(collection(db, "chats", chatId, "messages"), { ...payload, text: encryptedText });
-        await updateDoc(doc(db, "chats", chatId), { lastMessage: encryptedText, lastMessageAt: serverTimestamp() });
-        socket.emit("send_message", { ...payload, chatId, text: encryptedText });
+        
+        await addDoc(collection(db, "chats", chatId, "messages"), payload);
+        await updateDoc(doc(db, "chats", chatId), { lastMessage: text, lastMessageAt: serverTimestamp() });
+        socket.emit("send_message", { ...payload, chatId });
       }
     } catch (err) { console.error(err); }
   }, [input, currentUser?.uid, activeChat?.id, replyingTo, editingMessage]); // eslint-disable-line
@@ -720,7 +709,7 @@ export default function ChatPage() {
       {isSearchModalOpen && <UserSearchModal myUid={currentUser.uid} onStartChat={handleStartChatWithUser} onClose={() => setIsSearchModalOpen(false)} />}
       {isGroupModalOpen && <CreateGroupModal friends={friends} currentUser={currentUser} onClose={() => setIsGroupModalOpen(false)} onCreate={handleCreateGroup} />}
       <GiftPickerModal isOpen={isGiftModalOpen} onClose={() => setIsGiftModalOpen(false)} onSend={handleGiftSend} recipientName={activeChat?.name ?? ""} />
-      {showGif && ( <GifPicker onGifClick={(gifUrl: string) => { handleGifSend(gifUrl); setShowGif(false); }} />)}
+      {showGif && ( <GifPicker isOpen={showGif} onClose={() => setShowGif(false)} onGifClick={(gifUrl: string) => { handleGifSend(gifUrl); setShowGif(false); }} />)}
       <LeaderboardModal isOpen={isLeaderboardOpen} onClose={() => setIsLeaderboardOpen(false)} />
       <SendCoinsModal isOpen={isSendCoinsModalOpen} onClose={() => setIsSendCoinsModalOpen(false)} onSend={handleSendCoins} recipientName={activeChat?.name ?? ""} myCoins={myCoins} />
       <CallHistoryModal isOpen={isCallHistoryOpen} onClose={() => setIsCallHistoryOpen(false)} myUid={currentUser?.uid} />
@@ -939,19 +928,6 @@ export default function ChatPage() {
           </p>
         </div>
       </aside>
-    {/* ══════════════════════════════════════════════════════════ */}
-
-      {notification && (
-        <NotificationToast
-          notification={notification}
-          onDismiss={clearNotification}
-          onOpen={(chatId) => {
-            const target = chats.find((c) => c.id === chatId);
-            if (target) setActiveChat(target);
-            clearNotification();
-          }}
-        />
-      )}
 
       {/* ══════════════════════════════════════════════════════════ */}
       {/* CHAT PANEL                                                 */}
