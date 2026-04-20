@@ -52,6 +52,9 @@ import { Chat } from "@/types";
 import MessageSearchModal from "@/components/MessageSearchModal";
 import { invalidateChatCache } from "@/lib/messageSearch";
 
+// ── PATCH STEP 1: uploadFile import ──────────────────────────────────────────
+import { uploadFile } from "@/lib/uploadFile";
+
 // ── Avatar component ──────────────────────────────────────────────────────
 function Avatar({
   name,
@@ -504,50 +507,49 @@ export default function ChatPage() {
     setIsGroupModalOpen(false);
   }, [currentUser?.uid]); // eslint-disable-line
 
+  // ── PATCH STEP 2: Replaced handleFileChange ───────────────────────────────
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentUser || !activeChat) return;
     e.target.value = "";
 
     setUploadProgress(0);
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 20;
-      setUploadProgress(progress);
-    }, 150);
 
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
+    try {
+      // Resolve the Firestore chatId first (creates DM doc if needed)
+      const chatId = activeChat.isGroup
+        ? activeChat.id
+        : await ensureDmChat(currentUser.uid, activeChat.id, activeChat.name);
 
-    reader.onload = async () => {
-      clearInterval(interval);
-      setUploadProgress(100);
-      const base64Str = reader.result as string;
-      const isImage = file.type.startsWith("image/");
-      const isPdf = file.type === "application/pdf";
+      // uploadFile handles compression → Storage → Firestore-safe text value.
+      // The progress callback drives the existing upload progress bar.
+      const { firestoreText, preview } = await uploadFile(
+        file,
+        chatId,
+        (pct) => setUploadProgress(pct)
+      );
 
-      try {
-        const chatId = activeChat.id;
-        await addDoc(collection(db, "chats", chatId, "messages"), {
-          senderId: currentUser.uid, senderName: currentUser.displayName,
-          text: `FILE::${file.name}::${base64Str}`,
-          timestamp: serverTimestamp(), status: "sent", isDeleted: false,
-          ...(activeChat.isGroup ? { groupId: activeChat.id } : { receiverId: activeChat.id }),
-        });
-        // ── STEP 4: Invalidate search cache after file send ─────────────
-        invalidateChatCache(chatId);
-        const msgPreview = isImage ? "📷 Photo" : isPdf ? "📄 PDF" : `📄 ${file.name}`;
-        await updateDoc(doc(db, "chats", chatId), { lastMessage: msgPreview, lastMessageAt: serverTimestamp() });
-      } catch (err) { console.error(err); }
+      await addDoc(collection(db, "chats", chatId, "messages"), {
+        senderId:   currentUser.uid,
+        senderName: currentUser.displayName,
+        text:       firestoreText,
+        timestamp:  serverTimestamp(),
+        status:     "sent",
+        isDeleted:  false,
+        ...(activeChat.isGroup
+          ? { groupId: activeChat.id }
+          : { receiverId: activeChat.id }),
+      });
 
-      setTimeout(() => setUploadProgress(null), 300);
-    };
-
-    reader.onerror = () => {
-      console.error("Failed to read file");
-      clearInterval(interval);
-      setUploadProgress(null);
-    };
+      await updateDoc(doc(db, "chats", chatId), {
+        lastMessage:   preview,
+        lastMessageAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("[handleFileChange] Upload failed:", err);
+    } finally {
+      setTimeout(() => setUploadProgress(null), 400);
+    }
   };
 
   const startRecording = async () => {
@@ -568,21 +570,45 @@ export default function ChatPage() {
 
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
+
+        // ── PATCH STEP 3: Updated onstop → reader.onloadend ──────────────
         reader.onloadend = async () => {
-          const base64Audio = reader.result as string;
           if (!currentUser || !activeChat) return;
+          const base64Audio = reader.result as string;
+
+          // Wrap the base64 audio in a File so uploadFile can handle it
+          const audioBlob = await fetch(base64Audio).then((r) => r.blob());
+          const audioFile = new File([audioBlob], "audio-note.webm", { type: "audio/webm" });
+
           try {
-            const chatId = activeChat.id;
+            const chatId = activeChat.isGroup
+              ? activeChat.id
+              : await ensureDmChat(currentUser.uid, activeChat.id, activeChat.name);
+
+            const { firestoreText, preview } = await uploadFile(
+              audioFile,
+              chatId,
+              () => {} // no visible progress bar for voice notes
+            );
+
             await addDoc(collection(db, "chats", chatId, "messages"), {
-              senderId: currentUser.uid, senderName: currentUser.displayName,
-              text: `FILE::Audio Note::${base64Audio}`,
-              timestamp: serverTimestamp(), status: "sent", isDeleted: false,
-              ...(activeChat.isGroup ? { groupId: activeChat.id } : { receiverId: activeChat.id }),
+              senderId:   currentUser.uid,
+              senderName: currentUser.displayName,
+              text:       firestoreText,
+              timestamp:  serverTimestamp(),
+              status:     "sent",
+              isDeleted:  false,
+              ...(activeChat.isGroup
+                ? { groupId: activeChat.id }
+                : { receiverId: activeChat.id }),
             });
-            // ── STEP 4: Invalidate search cache after audio send ────────
-            invalidateChatCache(chatId);
-            await updateDoc(doc(db, "chats", chatId), { lastMessage: "🎤 Audio Note", lastMessageAt: serverTimestamp() });
-          } catch (err) { console.error(err); }
+            await updateDoc(doc(db, "chats", chatId), {
+              lastMessage:   preview,
+              lastMessageAt: serverTimestamp(),
+            });
+          } catch (err) {
+            console.error("[voice note upload] failed:", err);
+          }
         };
       };
 
