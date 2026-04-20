@@ -10,6 +10,8 @@ import {
   ImagePlay
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useFCM }              from "@/hooks/useFCM";
+import NotificationToast       from "@/components/NotificationToast"
 import {
   collection, doc, addDoc, updateDoc,arrayUnion, getDoc,
   serverTimestamp, Timestamp, increment
@@ -927,6 +929,25 @@ export default function ChatPage() {
           </p>
         </div>
       </aside>
+    {/* ══════════════════════════════════════════════════════════ */}
+    const { notification, clearNotification } = useFCM(
+    currentUser?.uid ?? null,
+    (chatId) => {
+      const target = chats.find((c) => c.id === chatId);
+      if (target) setActiveChat(target);
+    }
+  );
+      {notification && (
+        <NotificationToast
+          notification={notification}
+          onDismiss={clearNotification}
+          onOpen={(chatId) => {
+            const target = chats.find((c) => c.id === chatId);
+            if (target) setActiveChat(target);
+            clearNotification();
+          }}
+        />
+      )}
 
       {/* ══════════════════════════════════════════════════════════ */}
       {/* CHAT PANEL                                                 */}
