@@ -48,6 +48,10 @@ import { ensureDmChat, cn } from "@/lib/chatHelpers";
 import { Message, UserProfile } from "@/types";
 import { Chat } from "@/types";
 
+// ── STEP 1: Message search imports ───────────────────────────────────────────
+import MessageSearchModal from "@/components/MessageSearchModal";
+import { invalidateChatCache } from "@/lib/messageSearch";
+
 // ── Avatar component ──────────────────────────────────────────────────────
 function Avatar({
   name,
@@ -111,7 +115,6 @@ function Avatar({
     </div>
   );
 }
-
 // ── Main page ─────────────────────────────────────────────────────────────
 export default function ChatPage() {
   const router = useRouter();
@@ -140,6 +143,9 @@ export default function ChatPage() {
   const [myCoins, setMyCoins] = useState<number>(0);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
+
+  // ── STEP 2: Message search state ─────────────────────────────────────────
+  const [isMsgSearchOpen, setIsMsgSearchOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -182,10 +188,8 @@ export default function ChatPage() {
     remoteVideoRef: remoteVideoRef as React.RefObject<HTMLVideoElement>,
     onCallEnded: async (details) => {
       if (!currentUser) return;
-      // Only the caller logs it to prevent duplicate entries
       if (details.direction === "outgoing") {
          try {
-           // 1. Log to generic "calls" collection for Call History
            await addDoc(collection(db, "calls"), {
              members: [currentUser.uid, details.peerId],
              callerId: currentUser.uid,
@@ -198,7 +202,6 @@ export default function ChatPage() {
              timestamp: serverTimestamp()
            });
 
-           // 2. Insert into the actual Chat Thread
            const chatId = activeChat?.id;
            if (!chatId) return;
            const typeStr = details.isVideo ? "Video" : "Voice";
@@ -240,7 +243,6 @@ export default function ChatPage() {
     if (!socket.connected) socket.connect();
     socket.emit("user_online", { userId: currentUser.uid });
     
-    // Subscribe to coins
     const unsub = subscribeToUserStatus(currentUser.uid, (data) => {
       setMyCoins(data?.coins ?? 0);
     });
@@ -294,6 +296,18 @@ export default function ChatPage() {
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [showEmoji, showGif, replyingTo, uploadProgress, isOtherUserTyping]);
 
+  // ── STEP 6: Ctrl+K keyboard shortcut ─────────────────────────────────────
+  useEffect(() => {
+    const handleGlobalKey = (e: globalThis.KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setIsMsgSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKey);
+    return () => window.removeEventListener("keydown", handleGlobalKey);
+  }, []);
+
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -308,6 +322,37 @@ export default function ChatPage() {
     setShowScrollBtn(false);
   }, []);
 
+  // ── STEP 3: jumpToMessage handler ────────────────────────────────────────
+  const jumpToMessage = useCallback(
+    (chatId: string, messageId: string) => {
+      const targetChat = chats.find((c) => c.id === chatId);
+      if (!targetChat) return;
+      setActiveChat(targetChat);
+      setIsMsgSearchOpen(false);
+
+      const TIMEOUT_MS  = 3000;
+      const INTERVAL_MS = 100;
+      const deadline    = Date.now() + TIMEOUT_MS;
+
+      const poll = setInterval(() => {
+        const el = document.getElementById(`msg-${messageId}`);
+        if (el) {
+          clearInterval(poll);
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.style.transition   = "box-shadow 0.2s, border-radius 0.2s";
+          el.style.boxShadow    = "0 0 0 3px rgba(108,99,255,0.6)";
+          el.style.borderRadius = "12px";
+          setTimeout(() => {
+            el.style.boxShadow    = "";
+            el.style.borderRadius = "";
+          }, 1800);
+        }
+        if (Date.now() > deadline) clearInterval(poll);
+      }, INTERVAL_MS);
+    },
+    [chats]
+  );
+
   const savePhoneNumber = useCallback(async (phone: string) => {
     if (!currentUser) return;
     try {
@@ -320,7 +365,7 @@ export default function ChatPage() {
     if (!currentUser) return;
     const chatId = await ensureDmChat(currentUser.uid, user.uid, user.displayName);
     setActiveChat({
-      id: chatId,userId: user.uid, name: user.displayName, isGroup: false,
+      id: chatId, userId: user.uid, name: user.displayName, isGroup: false,
       lastMessage: "", status: user.isOnline ? "Active now" : "Offline",
       isOnline: user.isOnline, members: [currentUser.uid, user.uid],
     });
@@ -356,6 +401,8 @@ export default function ChatPage() {
           ...(pendingReply ? { replyTo: { id: pendingReply.id, text: pendingReply.text, senderName: pendingReply.senderName } } : {}),
         };
         await addDoc(collection(db, "chats", chatId, "messages"), payload);
+        // ── STEP 4: Invalidate search cache after send ──────────────────
+        invalidateChatCache(chatId);
         await updateDoc(doc(db, "chats", chatId), { lastMessage: text, lastMessageAt: serverTimestamp() });
         socket.emit("send_message", { ...payload, chatId });
       }
@@ -370,28 +417,17 @@ export default function ChatPage() {
   }, [activeChat?.id]); // eslint-disable-line
 
   const handleDeleteForMe = useCallback(async (msg: Message) => {
-  if (!activeChat || !currentUser) return;
-
-  try {
-    const ref = doc(db, "chats", activeChat.id, "messages", msg.id);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return;
-
-    const currentDeletedFor = snap.data().deletedFor || [];
-
-    // prevent duplicate entry
-    if (currentDeletedFor.includes(currentUser.uid)) return;
-
-    await updateDoc(ref, {
-      deletedFor: [...currentDeletedFor, currentUser.uid],
-    });
-
-  } catch (err) {
-    console.error(err);
-  }
-
-  setActiveMessage(null);
-}, [activeChat?.id, currentUser?.uid]);
+    if (!activeChat || !currentUser) return;
+    try {
+      const ref = doc(db, "chats", activeChat.id, "messages", msg.id);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) return;
+      const currentDeletedFor = snap.data().deletedFor || [];
+      if (currentDeletedFor.includes(currentUser.uid)) return;
+      await updateDoc(ref, { deletedFor: [...currentDeletedFor, currentUser.uid] });
+    } catch (err) { console.error(err); }
+    setActiveMessage(null);
+  }, [activeChat?.id, currentUser?.uid]);
 
   const handlePinMessage = async (msg: Message) => {
     if (!activeChat) return;
@@ -417,10 +453,11 @@ export default function ChatPage() {
       if (!snap.exists()) return;
       const currentStars = snap.data().starredBy ?? [];
       const isStarred = currentStars.includes(currentUser.uid);
-      const newStars = isStarred 
-        ? currentStars.filter((id: string) => id !== currentUser.uid)
-        : [...currentStars, currentUser.uid];
-      await updateDoc(ref, { starredBy: newStars });
+      await updateDoc(ref, {
+        starredBy: isStarred
+          ? currentStars.filter((id: string) => id !== currentUser.uid)
+          : [...currentStars, currentUser.uid]
+      });
     } catch(err) { console.error(err); }
     setActiveMessage(null);
   };
@@ -473,7 +510,6 @@ export default function ChatPage() {
     e.target.value = "";
 
     setUploadProgress(0);
-    // Simulate upload delay
     let progress = 0;
     const interval = setInterval(() => {
       progress += 20;
@@ -489,7 +525,6 @@ export default function ChatPage() {
       const base64Str = reader.result as string;
       const isImage = file.type.startsWith("image/");
       const isPdf = file.type === "application/pdf";
-      const fileType = isImage ? "image" : isPdf ? "pdf" : "file";
 
       try {
         const chatId = activeChat.id;
@@ -499,6 +534,8 @@ export default function ChatPage() {
           timestamp: serverTimestamp(), status: "sent", isDeleted: false,
           ...(activeChat.isGroup ? { groupId: activeChat.id } : { receiverId: activeChat.id }),
         });
+        // ── STEP 4: Invalidate search cache after file send ─────────────
+        invalidateChatCache(chatId);
         const msgPreview = isImage ? "📷 Photo" : isPdf ? "📄 PDF" : `📄 ${file.name}`;
         await updateDoc(doc(db, "chats", chatId), { lastMessage: msgPreview, lastMessageAt: serverTimestamp() });
       } catch (err) { console.error(err); }
@@ -542,6 +579,8 @@ export default function ChatPage() {
               timestamp: serverTimestamp(), status: "sent", isDeleted: false,
               ...(activeChat.isGroup ? { groupId: activeChat.id } : { receiverId: activeChat.id }),
             });
+            // ── STEP 4: Invalidate search cache after audio send ────────
+            invalidateChatCache(chatId);
             await updateDoc(doc(db, "chats", chatId), { lastMessage: "🎤 Audio Note", lastMessageAt: serverTimestamp() });
           } catch (err) { console.error(err); }
         };
@@ -572,7 +611,7 @@ export default function ChatPage() {
   const cancelRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
-      audioChunksRef.current = []; // Dump data
+      audioChunksRef.current = [];
       setIsRecording(false);
       if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
       setRecordingTime(0);
@@ -588,11 +627,7 @@ export default function ChatPage() {
     setGiftAnimation({ emoji: gift.emoji, label: gift.label });
     setTimeout(() => setGiftAnimation(null), 2500);
     try {
-      // Burn coins from sender
-      await updateDoc(doc(db, "users", currentUser.uid), {
-        coins: increment(-gift.cost)
-      });
-
+      await updateDoc(doc(db, "users", currentUser.uid), { coins: increment(-gift.cost) });
       const chatId = activeChat?.id;
       const giftText = `🎁 sent a gift: ${gift.emoji} ${gift.label}`;
       await addDoc(collection(db, "chats", chatId, "messages"), {
@@ -601,21 +636,21 @@ export default function ChatPage() {
         gift: { id: gift.id, emoji: gift.emoji, label: gift.label, cost: gift.cost },
         ...(activeChat.isGroup ? { groupId: activeChat.id } : { receiverId: activeChat.id }),
       });
+      // ── STEP 4: Invalidate search cache after gift send ─────────────
+      invalidateChatCache(chatId);
       await updateDoc(doc(db, "chats", chatId), { lastMessage: giftText, lastMessageAt: serverTimestamp() });
     } catch (err) { console.error(err); }
   };
 
   const handleSendCoins = async (amount: number) => {
-    if (!activeChat || !currentUser || activeChat.isGroup) return; // Only DMs for direct coins transfer
+    if (!activeChat || !currentUser || activeChat.isGroup) return;
     if (myCoins < amount) {
       alert(`Not enough coins! You have ${myCoins} 🪙.`);
       return;
     }
     try {
-      // Deduct from sender, give to receiver
       await updateDoc(doc(db, "users", currentUser.uid), { coins: increment(-amount) });
       await updateDoc(doc(db, "users", activeChat.id), { coins: increment(amount) });
-
       const chatId = activeChat.id;
       const coinText = `🪙 Transferred ${amount} coins`;
       await addDoc(collection(db, "chats", chatId, "messages"), {
@@ -624,6 +659,8 @@ export default function ChatPage() {
         coinTransfer: { amount },
         receiverId: activeChat.id,
       });
+      // ── STEP 4: Invalidate search cache after coin transfer ──────────
+      invalidateChatCache(chatId);
       await updateDoc(doc(db, "chats", chatId), { lastMessage: coinText, lastMessageAt: serverTimestamp() });
     } catch (err) { console.error(err); }
   };
@@ -638,6 +675,8 @@ export default function ChatPage() {
         text: url, timestamp: serverTimestamp(), status: "sent", isDeleted: false,
         ...(activeChat.isGroup ? { groupId: activeChat.id } : { receiverId: activeChat.id }),
       });
+      // ── STEP 4: Invalidate search cache after GIF send ───────────────
+      invalidateChatCache(chatId);
       await updateDoc(doc(db, "chats", chatId), { lastMessage: "🎞️ GIF", lastMessageAt: serverTimestamp() });
     } catch (err) { console.error(err); }
   };
@@ -667,6 +706,15 @@ export default function ChatPage() {
   const activeChatStatus = !activeChat ? "" : activeChat.isGroup ? "Group chat" : activeChatIsOnline ? "Active now" : "Offline";
   const canCall = !!activeChat && !activeChat.isGroup && callState === "idle";
   const filteredChats = chats.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  // ── FCM hook ─────────────────────────────────────────────────────────────
+  const { notification, clearNotification } = useFCM(
+    currentUser?.uid ?? null,
+    (chatId) => {
+      const target = chats.find((c) => c.id === chatId);
+      if (target) setActiveChat(target);
+    }
+  );
 
   // ── Loading ───────────────────────────────────────────────────────────
   if (loading || !currentUser) {
@@ -715,6 +763,29 @@ export default function ChatPage() {
       <SendCoinsModal isOpen={isSendCoinsModalOpen} onClose={() => setIsSendCoinsModalOpen(false)} onSend={handleSendCoins} recipientName={activeChat?.name ?? ""} myCoins={myCoins} />
       <CallHistoryModal isOpen={isCallHistoryOpen} onClose={() => setIsCallHistoryOpen(false)} myUid={currentUser?.uid} />
 
+      {/* ── STEP 7: Message Search Modal ─────────────────────────────────── */}
+      {isMsgSearchOpen && (
+        <MessageSearchModal
+          chats={chats}
+          myUid={currentUser.uid}
+          onOpen={jumpToMessage}
+          onClose={() => setIsMsgSearchOpen(false)}
+        />
+      )}
+
+      {/* FCM foreground notification toast */}
+      {notification && (
+        <NotificationToast
+          notification={notification}
+          onDismiss={clearNotification}
+          onOpen={(chatId) => {
+            const target = chats.find((c) => c.id === chatId);
+            if (target) setActiveChat(target);
+            clearNotification();
+          }}
+        />
+      )}
+
       {/* Gift animation */}
       {giftAnimation && (
         <div className="fixed inset-0 z-[130] pointer-events-none flex items-center justify-center">
@@ -744,42 +815,29 @@ export default function ChatPage() {
                 className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-white/10 text-sm">
                 <Reply size={16} /> <span className="font-medium">Reply</span>
               </button>
-
-              {/* Delete for Me */}
               <button onClick={() => handleDeleteForMe(activeMessage.message)}
                 className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-white/10 text-sm">
                 <Trash2 size={16} /> <span className="font-medium">Delete for Me</span>
               </button>
-
-              {/* Delete for Everyone */}
               {activeMessage.message.isMe && (
                 <button onClick={() => handleDeleteMessage(activeMessage.message)}
                   className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-red-500/10 text-red-400 text-sm">
                   <Trash2 size={16} /> <span className="font-medium">Delete for Everyone</span>
                 </button>
               )}
-              
-              {/* Pin Message */}
               <button onClick={() => handlePinMessage(activeMessage.message)}
                 className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-white/10 text-sm">
                 <Pin size={16} /> <span className="font-medium">Pin to Chat</span>
               </button>
-
-              {/* Star Message */}
               <button onClick={() => handleStarMessage(activeMessage.message)}
                 className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-white/10 text-sm">
                 <Star size={16} /> <span className="font-medium">Star Message</span>
               </button>
-
-              {/* Forward Message */}
               <button onClick={() => { setActiveMessage(null); }}
                 className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-white/10 text-sm">
                 <Forward size={16} /> <span className="font-medium">Forward</span>
               </button>
-
               <div className="h-[1px] w-full bg-white/10 my-1"/>
-
-              {/* Delete */}
               {activeMessage.message.isMe && (
                 <button onClick={() => handleDeleteMessage(activeMessage.message)}
                   className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-red-500/10 text-red-400 text-sm">
@@ -823,6 +881,15 @@ export default function ChatPage() {
               <button onClick={() => setIsSearchModalOpen(true)}
                 className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
                 style={{ color: "var(--text-secondary)" }} title="Find user">
+                <UserPlus size={16} />
+              </button>
+              {/* ── STEP 5: Message search button ── */}
+              <button
+                onClick={() => setIsMsgSearchOpen(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
+                style={{ color: "var(--text-secondary)" }}
+                title="Search messages (Ctrl+K)"
+              >
                 <Search size={16} />
               </button>
               <button onClick={() => setIsCallHistoryOpen(true)}
@@ -929,25 +996,6 @@ export default function ChatPage() {
           </p>
         </div>
       </aside>
-    {/* ══════════════════════════════════════════════════════════ */}
-    const { notification, clearNotification } = useFCM(
-    currentUser?.uid ?? null,
-    (chatId) => {
-      const target = chats.find((c) => c.id === chatId);
-      if (target) setActiveChat(target);
-    }
-  );
-      {notification && (
-        <NotificationToast
-          notification={notification}
-          onDismiss={clearNotification}
-          onOpen={(chatId) => {
-            const target = chats.find((c) => c.id === chatId);
-            if (target) setActiveChat(target);
-            clearNotification();
-          }}
-        />
-      )}
 
       {/* ══════════════════════════════════════════════════════════ */}
       {/* CHAT PANEL                                                 */}
@@ -967,12 +1015,7 @@ export default function ChatPage() {
                 <Menu size={18} />
               </button>
               <div className="flex items-center gap-3 cursor-pointer" onClick={() => setIsMediaOpen(true)}>
-                <Avatar
-                  name={activeChat.name}
-                  size="md"
-                  isGroup={activeChat.isGroup}
-                  isOnline={activeChatIsOnline}
-                />
+                <Avatar name={activeChat.name} size="md" isGroup={activeChat.isGroup} isOnline={activeChatIsOnline} />
                 <div>
                   <h2 className="font-bold leading-tight" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)", fontSize: 15 }}>
                     {activeChat.name}
@@ -1022,7 +1065,6 @@ export default function ChatPage() {
 
         {/* ── Messages ── */}
         <div className="flex-1 relative overflow-hidden">
-          {/* Pinned Message Banner */}
           {currentActiveChat?.pinnedMessage && (
             <div className="absolute top-0 left-0 right-0 z-20 bg-black/40 backdrop-blur-xl px-5 py-2.5 flex items-center justify-between shadow-sm cursor-pointer hover:bg-white/5 transition-colors border-b border-white/10"
                  onClick={() => {
@@ -1045,7 +1087,6 @@ export default function ChatPage() {
             </div>
           )}
 
-          {/* Subtle chat background pattern */}
           <div className="absolute inset-0 opacity-[0.015] z-0"
             style={{ backgroundImage: "radial-gradient(circle, #6c63ff 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
 
@@ -1054,7 +1095,6 @@ export default function ChatPage() {
             onScroll={handleScroll}
             className="relative h-full overflow-y-auto px-5 py-6 space-y-1"
           >
-            {/* Empty state */}
             {messages.length === 0 && activeChat && (
               <div className="flex flex-col items-center justify-center h-full py-20 text-center">
                 <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-500/20 to-cyan-500/20 flex items-center justify-center mb-4 shadow-lg"
@@ -1070,11 +1110,9 @@ export default function ChatPage() {
               </div>
             )}
 
-           {messages.map((msg, index) => {
-
-  // ✅ NEW LOGIC (persistent delete for me)
+            {messages.map((msg, index) => {
               if (msg.deletedFor?.includes(currentUser.uid)) {
-                return null; // completely hide
+                return null;
               }
 
               const prevMsg = messages[index - 1];
@@ -1090,9 +1128,7 @@ export default function ChatPage() {
               const showDivider = !prevMsg || !isSameDay(curDate, prevDate);
 
               let dateText = curDate.toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
+                month: 'short', day: 'numeric', year: 'numeric'
               });
 
               const today = new Date();
@@ -1111,7 +1147,6 @@ export default function ChatPage() {
                       </span>
                     </div>
                   )}
-
                   <div className={cn("flex flex-col mb-1", msg.isMe ? "animate-msg-right" : "animate-msg-left")}>
                     {activeChat?.isGroup && !msg.isMe && (
                       <span className="text-[10px] font-bold uppercase tracking-wider mb-1 ml-1"
@@ -1119,7 +1154,6 @@ export default function ChatPage() {
                         {msg.senderName}
                       </span>
                     )}
-
                     <ChatBubble
                       message={msg}
                       onReply={(m: Message) => setReplyingTo(m)}
@@ -1129,7 +1163,7 @@ export default function ChatPage() {
                   </div>
                 </div>
               );
-            })}            
+            })}
 
             {isOtherUserTyping && activeChat && (
               <div className="flex items-center gap-3 mb-2">
@@ -1160,7 +1194,6 @@ export default function ChatPage() {
             )}
           </div>
 
-          {/* Scroll to bottom button */}
           {showScrollBtn && (
             <button onClick={scrollToBottom}
               className="scroll-btn absolute bottom-5 right-5 z-30 w-10 h-10 rounded-full flex items-center justify-center text-white transition-all active:scale-90">
@@ -1185,7 +1218,6 @@ export default function ChatPage() {
         <div className="shrink-0 px-5 pb-5 pt-3" style={{ borderTop: "1px solid var(--border)", background: "var(--bg-panel)" }}>
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
-          {/* Reply preview */}
           {replyingTo && (
             <div className="mb-2 px-4 py-2.5 rounded-xl flex items-center justify-between gap-3"
               style={{ background: "var(--bg-elevated)", borderLeft: "3px solid var(--accent-1)" }}>
@@ -1201,8 +1233,6 @@ export default function ChatPage() {
             </div>
           )}
 
-
-          {/* Input row */}
           <div className={cn("flex items-center gap-2 p-2 rounded-2xl border input-glow transition-all",
             replyingTo && "rounded-tl-none rounded-tr-none border-t-0")}
             style={{ background: "var(--bg-elevated)", borderColor: "var(--border)" }}>
@@ -1225,11 +1255,10 @@ export default function ChatPage() {
               </div>
             ) : (
               <>
-                {/* Tool buttons */}
                 {[
                   { icon: Paperclip, action: () => fileInputRef.current?.click(), title: "Attach file" },
                   { icon: Smile, action: () => setShowEmoji(prev => !prev), title: "Emoji" },
-                  { icon: ImagePlay, action:() => setShowGif(prev => !prev), title: "GIF" },
+                  { icon: ImagePlay, action: () => setShowGif(prev => !prev), title: "GIF" },
                   { icon: Gift, action: () => { setIsMediaOpen(false); setIsGiftModalOpen(true); }, title: "Gift" },
                   {
                     icon: CoinsIcon,
@@ -1248,7 +1277,6 @@ export default function ChatPage() {
                     <Icon size={20} className={title === "Send Coins" ? "text-yellow-500" : ""} />
                   </button>
                 ))}
-                {/* Emoji / GIF / Stickers button (OUTSIDE MAP) */}
 
                 <input
                   type="text"
@@ -1261,7 +1289,6 @@ export default function ChatPage() {
                   style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
                 />
 
-                {/* Send / Mic Button */}
                 {input.trim() ? (
                   <button
                     onClick={() => handleSendMessage()}
