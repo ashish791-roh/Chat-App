@@ -52,7 +52,6 @@ import { Chat } from "@/types";
 
 // ── STEP 1: Message search imports ───────────────────────────────────────────
 import MessageSearchModal from "@/components/MessageSearchModal";
-import { invalidateChatCache } from "@/lib/messageSearch";
 
 // ── PATCH STEP 1: uploadFile import ──────────────────────────────────────────
 import { uploadFile } from "@/lib/uploadFile";
@@ -589,7 +588,7 @@ export default function ChatPage() {
 
           // Wrap the base64 audio in a File so uploadFile can handle it
           const audioBlob = await fetch(base64Audio).then((r) => r.blob());
-          const audioFile = new File([audioBlob], "audio-note.webm", { type: "audio/webm" });
+          const audioFile = new (File as any)([audioBlob], "audio-note.webm", { type: "audio/webm" });
 
           try {
             const chatId = activeChat.isGroup
@@ -743,15 +742,6 @@ export default function ChatPage() {
   const activeChatStatus = !activeChat ? "" : activeChat.isGroup ? "Group chat" : activeChatIsOnline ? "Active now" : "Offline";
   const canCall = !!activeChat && !activeChat.isGroup && callState === "idle";
   const filteredChats = chats.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
-
-  // ── FCM hook ─────────────────────────────────────────────────────────────
-  const { notification, clearNotification } = useFCM(
-    currentUser?.uid ?? null,
-    (chatId) => {
-      const target = chats.find((c) => c.id === chatId);
-      if (target) setActiveChat(target);
-    }
-  );
 
   // ── Loading ───────────────────────────────────────────────────────────
   if (loading || !currentUser) {
