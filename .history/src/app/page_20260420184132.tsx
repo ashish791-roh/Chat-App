@@ -43,7 +43,6 @@ import { useDeliveryStatus } from "@/hooks/useDeliveryStatus";
 import { encryptMessage } from "@/lib/encryption";
 import GifPicker from "@/components/GifPicker";
 import EmojiPicker from "@/components/EmojiPicker";
-import { invalidateChatCache } from "@/lib/messageSearch";
 
 import { socket } from "@/lib/socket";
 import { ensureDmChat, cn } from "@/lib/chatHelpers";
@@ -52,6 +51,7 @@ import { Chat } from "@/types";
 
 // ── STEP 1: Message search imports ───────────────────────────────────────────
 import MessageSearchModal from "@/components/MessageSearchModal";
+import { invalidateChatCache } from "@/lib/messageSearch";
 
 // ── PATCH STEP 1: uploadFile import ──────────────────────────────────────────
 import { uploadFile } from "@/lib/uploadFile";
@@ -588,7 +588,7 @@ export default function ChatPage() {
 
           // Wrap the base64 audio in a File so uploadFile can handle it
           const audioBlob = await fetch(base64Audio).then((r) => r.blob());
-          const audioFile = new (File as any)([audioBlob], "audio-note.webm", { type: "audio/webm" });
+          const audioFile = new File([audioBlob], "audio-note.webm", { type: "audio/webm" });
 
           try {
             const chatId = activeChat.isGroup
@@ -743,6 +743,15 @@ export default function ChatPage() {
   const canCall = !!activeChat && !activeChat.isGroup && callState === "idle";
   const filteredChats = chats.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
+  // ── FCM hook ─────────────────────────────────────────────────────────────
+  const { notification, clearNotification } = useFCM(
+    currentUser?.uid ?? null,
+    (chatId) => {
+      const target = chats.find((c) => c.id === chatId);
+      if (target) setActiveChat(target);
+    }
+  );
+
   // ── Loading ───────────────────────────────────────────────────────────
   if (loading || !currentUser) {
     return (
@@ -887,8 +896,8 @@ export default function ChatPage() {
       {/* ══════════════════════════════════════════════════════════ */}
       <aside
         className={cn(
-          "w-[85vw] max-w-[300px] flex flex-col border-r transition-transform duration-300 ease-in-out",
-          "fixed inset-y-0 left-0 z-50 md:relative md:translate-x-0 md:w-[300px]",
+          "w-[300px] flex flex-col border-r transition-transform duration-300 ease-in-out",
+          "fixed inset-y-0 left-0 z-50 md:relative md:translate-x-0",
           isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
         style={{ background: "var(--bg-panel)", borderColor: "var(--border)" }}
@@ -1044,7 +1053,7 @@ export default function ChatPage() {
 
         {/* ── Chat Header ── */}
         <header
-          className="shrink-0 px-3 sm:px-5 py-2.5 sm:py-3.5 flex items-center justify-between glass"
+          className="shrink-0 px-5 py-3.5 flex items-center justify-between glass"
           style={{ borderBottom: "1px solid var(--border)", minHeight: 68 }}
         >
           {activeChat ? (
@@ -1133,7 +1142,7 @@ export default function ChatPage() {
           <div
             ref={scrollRef}
             onScroll={handleScroll}
-            className="relative h-full overflow-y-auto px-3 sm:px-5 py-4 sm:py-6 space-y-0.5"
+            className="relative h-full overflow-y-auto px-5 py-6 space-y-1"
           >
             {messages.length === 0 && activeChat && (
               <div className="flex flex-col items-center justify-center h-full py-20 text-center">
@@ -1187,9 +1196,9 @@ export default function ChatPage() {
                       </span>
                     </div>
                   )}
-                  <div className={cn("flex flex-col w-full mb-0.5", msg.isMe ? "items-end animate-msg-right" : "items-start animate-msg-left")}>
+                  <div className={cn("flex flex-col mb-1", msg.isMe ? "animate-msg-right" : "animate-msg-left")}>
                     {activeChat?.isGroup && !msg.isMe && (
-                      <span className="text-[10px] font-bold uppercase tracking-wider mb-0.5 ml-1"
+                      <span className="text-[10px] font-bold uppercase tracking-wider mb-1 ml-1"
                         style={{ color: "var(--accent-2)" }}>
                         {msg.senderName}
                       </span>
@@ -1243,7 +1252,7 @@ export default function ChatPage() {
         </div>
 
         {showEmoji && (
-          <div className="absolute bottom-24 left-2 sm:left-5 z-50 picker-slide-up max-w-[calc(100vw-16px)]">
+          <div className="absolute bottom-24 left-5 z-50">
             <EmojiPicker
               theme="dark"
               onEmojiClick={(emoji) => {
@@ -1255,7 +1264,7 @@ export default function ChatPage() {
         )}
 
         {/* ── Input Bar ── */}
-        <div className="shrink-0 px-3 sm:px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 sm:pt-3" style={{ borderTop: "1px solid var(--border)", background: "var(--bg-panel)" }}>
+        <div className="shrink-0 px-5 pb-5 pt-3" style={{ borderTop: "1px solid var(--border)", background: "var(--bg-panel)" }}>
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
           {replyingTo && (
@@ -1295,41 +1304,28 @@ export default function ChatPage() {
               </div>
             ) : (
               <>
-                {/* Always visible: Attach + Emoji */}
-                <button type="button" onClick={() => fileInputRef.current?.click()} title="Attach file"
-                  className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/8 active:scale-90 shrink-0"
-                  style={{ color: "var(--text-muted)" }}>
-                  <Paperclip size={19} />
-                </button>
-                <button type="button" onClick={() => setShowEmoji(prev => !prev)} title="Emoji"
-                  className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/8 active:scale-90 shrink-0"
-                  style={{ color: "var(--text-muted)" }}>
-                  <Smile size={19} />
-                </button>
-                {/* Hidden on small screens: GIF, Gift, Coins */}
-                <button type="button" onClick={() => setShowGif(prev => !prev)} title="GIF"
-                  className="hidden sm:flex w-9 h-9 items-center justify-center rounded-xl transition-all hover:bg-white/8 active:scale-90 shrink-0"
-                  style={{ color: "var(--text-muted)" }}>
-                  <ImagePlay size={19} />
-                </button>
-                <button type="button" onClick={() => { setIsMediaOpen(false); setIsGiftModalOpen(true); }} title="Gift"
-                  className="hidden sm:flex w-9 h-9 items-center justify-center rounded-xl transition-all hover:bg-white/8 active:scale-90 shrink-0"
-                  style={{ color: "var(--text-muted)" }}>
-                  <Gift size={19} />
-                </button>
-                <button type="button"
-                  onClick={() => { !activeChat?.isGroup && setIsSendCoinsModalOpen(true); }}
-                  title={activeChat?.isGroup ? "Cannot send coins in group" : "Send Coins"}
-                  className="hidden sm:flex w-9 h-9 items-center justify-center rounded-xl transition-all hover:bg-white/8 active:scale-90 shrink-0"
-                  style={{ color: "var(--text-muted)" }}>
-                  <CoinsIcon size={19} className="text-yellow-500" />
-                </button>
-                {/* Mobile-only: More button that opens media sidebar for extra actions */}
-                <button type="button" onClick={() => setIsMediaOpen(true)} title="More actions"
-                  className="flex sm:hidden w-9 h-9 items-center justify-center rounded-xl transition-all hover:bg-white/8 active:scale-90 shrink-0"
-                  style={{ color: "var(--text-muted)" }}>
-                  <MoreVertical size={19} />
-                </button>
+                {[
+                  { icon: Paperclip, action: () => fileInputRef.current?.click(), title: "Attach file" },
+                  { icon: Smile, action: () => setShowEmoji(prev => !prev), title: "Emoji" },
+                  { icon: ImagePlay, action: () => setShowGif(prev => !prev), title: "GIF" },
+                  { icon: Gift, action: () => { setIsMediaOpen(false); setIsGiftModalOpen(true); }, title: "Gift" },
+                  {
+                    icon: CoinsIcon,
+                    action: () => { !activeChat?.isGroup && setIsSendCoinsModalOpen(true); },
+                    title: activeChat?.isGroup ? "Cannot send coins in group" : "Send Coins"
+                  }
+                ].map(({ icon: Icon, action, title }) => (
+                  <button
+                    key={title}
+                    type="button"
+                    onClick={action}
+                    title={title}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/8 active:scale-90"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    <Icon size={20} className={title === "Send Coins" ? "text-yellow-500" : ""} />
+                  </button>
+                ))}
 
                 <input
                   type="text"
