@@ -8,7 +8,7 @@ import {
   Mic, ImageIcon, Zap, Edit2, Pin, Star, Forward, Copy,
   Trophy, Coins as CoinsIcon,
   ImagePlay, MessageSquare, ChevronLeft, Archive, Bell, BellOff,
-  Shield, LogOut, Moon, Sun, Camera, User
+  Shield, LogOut, Moon, Sun, Camera
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useFCM }              from "@/hooks/useFCM";
@@ -28,7 +28,7 @@ import PhoneNumberModal from "@/components/PhoneNumberModal";
 import UserSearchModal from "@/components/UserSearchModal";
 import CreateGroupModal from "@/components/CreateGroupModal";
 import CallHistoryModal from "@/components/CallHistoryModal";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import ThemeToggle from "@/components/ThemeToggle";
 import GiftPickerModal, { GiftItem } from "@/components/GiftPickerModal";
 import LeaderboardModal from "@/components/LeaderboardModal";
 import SendCoinsModal from "@/components/SendCoinsModal";
@@ -149,13 +149,13 @@ export default function ChatPage() {
   const [myCoins, setMyCoins] = useState<number>(0);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
+  const [isMobileView, setIsMobileView] = useState(false);
   const [activeTab, setActiveTab] = useState<'chats' | 'calls' | 'status' | 'archived'>('chats');
   const [archivedChats, setArchivedChats] = useState<Set<string>>(new Set());
   const [mutedChats, setMutedChats] = useState<Set<string>>(new Set());
   const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set());
   const [showSettings, setShowSettings] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // ── STEP 2: Message search state ─────────────────────────────────────────
   const [isMsgSearchOpen, setIsMsgSearchOpen] = useState(false);
@@ -252,8 +252,25 @@ export default function ChatPage() {
   );
 
   useEffect(() => {
+    // Only auto-open first chat on desktop. On mobile, show chat list first.
+    if (!isMobileView && !activeChat && chats.length > 0) {
+      setActiveChat(chats[0]);
+    }
+  }, [chats, activeChat, isMobileView]);
+
+  useEffect(() => {
     if (!loading && !authUser) router.replace("/auth/login");
   }, [authUser, loading, router]);
+
+  // Detect mobile view and prevent auto-opening chats on mobile
+  useEffect(() => {
+    const checkMobileView = () => {
+      setIsMobileView(window.innerWidth < 768);
+    };
+    checkMobileView();
+    window.addEventListener("resize", checkMobileView);
+    return () => window.removeEventListener("resize", checkMobileView);
+  }, []);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -770,9 +787,7 @@ export default function ChatPage() {
   }
 
   return (
-    <main className="flex h-screen overflow-hidden relative z-10 pb-16 md:pb-0 bg-gradient-to-br from-slate-900 via-purple-900/10 to-slate-900">
-      {/* Enhanced background effects */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-900/20 via-transparent to-cyan-900/20 pointer-events-none" />
+    <main className="flex h-screen overflow-hidden relative z-10 pb-16 md:pb-0">
 
       {/* ── Call Screen ── */}
       {callState !== "idle" && (
@@ -1022,137 +1037,81 @@ export default function ChatPage() {
       )}
 
       {/* ══════════════════════════════════════════════════════════ */}
-      {/* VERTICAL ACTION BAR (WhatsApp Web Style)               */}
-      {/* ══════════════════════════════════════════════════════════ */}
-      <div className="hidden md:flex flex-col w-14 vertical-action-bar">
-        <div className="flex-1 flex flex-col items-center py-4 space-y-2">
-          {/* Find User */}
-          <button
-            onClick={() => setIsSearchModalOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95 group"
-            style={{ color: "var(--text-secondary)" }}
-            title="Find user"
-          >
-            <UserPlus size={20} className="group-hover:text-violet-400 transition-colors" />
-          </button>
-
-          {/* Search Messages */}
-          <button
-            onClick={() => setIsMsgSearchOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95 group"
-            style={{ color: "var(--text-secondary)" }}
-            title="Search messages (Ctrl+K)"
-          >
-            <Search size={20} className="group-hover:text-cyan-400 transition-colors" />
-          </button>
-
-          {/* Call History */}
-          <button
-            onClick={() => setIsCallHistoryOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95 group"
-            style={{ color: "var(--text-secondary)" }}
-            title="Call History"
-          >
-            <Phone size={20} className="group-hover:text-emerald-400 transition-colors" />
-          </button>
-
-          {/* Leaderboard */}
-          <button
-            onClick={() => setIsLeaderboardOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-yellow-500/20 hover:scale-110 active:scale-95 group"
-            title="Leaderboard"
-          >
-            <Trophy size={20} className="text-yellow-500 group-hover:text-yellow-300 transition-colors" />
-          </button>
-
-          {/* Settings */}
-          <button
-            onClick={() => setShowSettings(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95 group"
-            style={{ color: "var(--text-secondary)" }}
-            title="Settings"
-          >
-            <Settings size={20} className="group-hover:text-pink-400 transition-colors" />
-          </button>
-        </div>
-
-        {/* Profile at bottom */}
-        <div className="p-2 border-t border-white/10">
-          <button
-            onClick={() => setIsProfileOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95"
-            title="Profile"
-          >
-            <Avatar name={currentUser.displayName} size="sm" isOnline src={currentUser.avatar} />
-          </button>
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════ */}
       {/* SIDEBAR                                                    */}
       {/* ══════════════════════════════════════════════════════════ */}
       <aside
         className={cn(
-          "hidden md:flex flex-col border-r border-white/10 transition-all duration-300 ease-in-out backdrop-blur-xl",
-          "fixed inset-y-0 left-0 z-50 md:relative md:translate-x-0",
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
-          "bg-gradient-to-b from-slate-900/95 via-purple-900/20 to-slate-900/95",
-          sidebarCollapsed ? "w-16" : "w-80"
+          "hidden md:flex w-[85vw] max-w-[300px] flex flex-col border-r transition-transform duration-300 ease-in-out",
+          "fixed inset-y-0 left-0 z-50 md:relative md:translate-x-0 md:w-[300px]",
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
+        style={{ background: "var(--bg-panel)", borderColor: "var(--border)" }}
       >
-        {/* Enhanced sidebar background */}
-        <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 via-transparent to-cyan-500/5 pointer-events-none" />
-
         {/* ── Sidebar Header ── */}
-        <div className="relative px-6 pt-8 pb-6 border-b border-white/10">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-violet-500/25">
-                <Zap size={18} className="text-white" />
+        <div className="px-5 pt-6 pb-4" style={{ borderBottom: "1px solid var(--border)" }}>
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center shadow-lg">
+                <Zap size={16} className="text-white" />
               </div>
-              {!sidebarCollapsed && (
-                <span className="text-xl font-bold text-gradient" style={{ fontFamily: "var(--font-display)" }}>
-                  BlinkChat
-                </span>
-              )}
+              <span className="text-lg font-bold text-gradient" style={{ fontFamily: "var(--font-display)" }}>
+                BlinkChat
+              </span>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                className="hidden md:flex w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-105 active:scale-95"
-                style={{ color: "var(--text-secondary)" }}
-                title="Toggle sidebar"
-              >
-                <Menu size={18} />
+            <div className="flex items-center gap-1">
+              <button onClick={() => setIsSearchModalOpen(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
+                style={{ color: "var(--text-secondary)" }} title="Find user">
+                <UserPlus size={16} />
               </button>
+              {/* ── STEP 5: Message search button ── */}
               <button
-                onClick={() => setIsSidebarOpen(false)}
-                className="md:hidden w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-105 active:scale-95"
+                onClick={() => setIsMsgSearchOpen(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
                 style={{ color: "var(--text-secondary)" }}
+                title="Search messages (Ctrl+K)"
               >
-                <X size={18} />
+                <Search size={16} />
+              </button>
+              <button onClick={() => setIsCallHistoryOpen(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
+                style={{ color: "var(--text-secondary)" }} title="Call History">
+                <Phone size={16} />
+              </button>
+              <button onClick={() => setIsLeaderboardOpen(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
+                style={{ color: "var(--accent-2)" }} title="Leaderboard">
+                <Trophy size={16} className="text-yellow-500" />
+              </button>
+              <button onClick={() => setShowSettings(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
+                style={{ color: "var(--text-secondary)" }} title="Settings">
+                <Settings size={16} />
+              </button>
+              <button onClick={() => setIsSidebarOpen(false)}
+                className="md:hidden w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
+                style={{ color: "var(--text-secondary)" }}>
+                <X size={16} />
               </button>
             </div>
           </div>
 
-          {/* Enhanced Mobile Tabs */}
-          <div className="md:hidden flex items-center gap-1 p-1.5 bg-gradient-to-r from-white/5 to-white/10 rounded-2xl mb-6 backdrop-blur-sm border border-white/10">
+          {/* Mobile Tabs */}
+          <div className="md:hidden flex items-center gap-1 p-1 bg-white/5 rounded-xl mb-4">
             {[
-              { id: 'chats', label: 'Chats', icon: MessageSquare, color: 'text-blue-400' },
-              { id: 'status', label: 'Status', icon: Camera, color: 'text-green-400' },
-              { id: 'calls', label: 'Calls', icon: Phone, color: 'text-purple-400' }
-            ].map(({ id, label, icon: Icon, color }) => (
+              { id: 'chats', label: 'Chats', icon: MessageSquare },
+              { id: 'status', label: 'Status', icon: Camera },
+              { id: 'calls', label: 'Calls', icon: Phone }
+            ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id as any)}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-semibold transition-all duration-200",
-                  activeTab === id
-                    ? "bg-gradient-to-r from-violet-500/20 to-cyan-500/20 text-white shadow-lg shadow-violet-500/25 border border-violet-400/30"
-                    : `text-white/60 hover:text-white/80 hover:bg-white/5 ${color} hover:${color.replace('400', '300')}`
+                  "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all",
+                  activeTab === id ? "bg-white/10 text-white" : "text-white/60 hover:text-white/80"
                 )}
               >
-                <Icon size={16} className={activeTab === id ? 'text-white' : ''} />
+                <Icon size={14} />
                 {label}
               </button>
             ))}
@@ -1409,35 +1368,33 @@ export default function ChatPage() {
       {/* ══════════════════════════════════════════════════════════ */}
       <section className="flex-1 flex flex-col h-full min-w-0" style={{ background: "var(--bg-deep)" }}>
 
-        {/* ── Enhanced Chat Header ── */}
+        {/* ── Chat Header ── */}
         <header
-          className="shrink-0 px-4 sm:px-6 py-4 flex items-center justify-between backdrop-blur-xl bg-gradient-to-r from-slate-900/90 via-purple-900/20 to-slate-900/90 border-b border-white/10"
-          style={{ minHeight: 76 }}
+          className="shrink-0 px-3 sm:px-5 py-2.5 sm:py-3.5 flex items-center justify-between glass"
+          style={{ borderBottom: "1px solid var(--border)", minHeight: 68 }}
         >
           {activeChat ? (
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setIsSidebarOpen(true)}
-                className="md:hidden w-10 h-10 flex items-center justify-center rounded-2xl hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                <Menu size={20} />
+            <div className="flex items-center gap-3">
+              <button onClick={() => setIsSidebarOpen(true)}
+                className="md:hidden w-8 h-8 flex items-center justify-center rounded-xl hover:bg-white/8 transition-colors"
+                style={{ color: "var(--text-secondary)" }}>
+                <Menu size={18} />
               </button>
-              <div className="flex items-center gap-4 cursor-pointer group" onClick={() => setIsMediaOpen(true)}>
+              <div className="flex items-center gap-3 cursor-pointer" onClick={() => setIsMediaOpen(true)}>
                 <Avatar name={activeChat.name} size="md" isGroup={activeChat.isGroup} isOnline={activeChatIsOnline} />
-                <div className="min-w-0">
-                  <h2 className="font-bold leading-tight text-white group-hover:text-violet-300 transition-colors" style={{ fontFamily: "var(--font-display)", fontSize: 16 }}>
+                <div>
+                  <h2 className="font-bold leading-tight" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)", fontSize: 15 }}>
                     {activeChat.name}
                   </h2>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-1.5">
                     {activeChatIsOnline && (
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-lg shadow-emerald-400/50" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
                     )}
-                    <span className="text-xs font-medium" style={{ color: activeChatIsOnline ? "#34d399" : "var(--text-muted)" }}>
+                    <span className="text-[11px]" style={{ color: activeChatIsOnline ? "#34d399" : "var(--text-muted)" }}>
                       {activeChatStatus}
                     </span>
                     {activePeerPhone && (
-                      <span className="text-xs text-white/50">
+                      <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                         · {activePeerPhone}
                       </span>
                     )}
@@ -1505,27 +1462,17 @@ export default function ChatPage() {
             className="relative h-full overflow-y-auto px-3 sm:px-5 py-4 sm:py-6 space-y-0.5"
           >
             {messages.length === 0 && activeChat && (
-              <div className="flex flex-col items-center justify-center h-full py-24 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="relative mb-6">
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-violet-500/30 to-cyan-500/30 flex items-center justify-center shadow-2xl backdrop-blur-xl border border-white/10"
-                    style={{ boxShadow: "0 0 60px rgba(108,99,255,0.2)" }}>
-                    <span className="text-5xl animate-bounce">💬</span>
-                  </div>
-                  <div className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg">
-                    <span className="text-lg">✨</span>
-                  </div>
+              <div className="flex flex-col items-center justify-center h-full py-20 text-center">
+                <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-500/20 to-cyan-500/20 flex items-center justify-center mb-4 shadow-lg"
+                  style={{ boxShadow: "0 0 40px rgba(108,99,255,0.15)" }}>
+                  <span className="text-3xl">💬</span>
                 </div>
-                <p className="font-bold text-xl mb-2 text-white" style={{ fontFamily: "var(--font-display)" }}>
+                <p className="font-semibold mb-1" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-display)" }}>
                   Start the conversation
                 </p>
-                <p className="text-base text-white/60 max-w-xs leading-relaxed">
-                  Send a message to {activeChat.name} and begin your chat journey!
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                  Say hi to {activeChat.name}!
                 </p>
-                <div className="mt-6 flex gap-2">
-                  <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" style={{ animationDelay: '0s' }} />
-                  <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" style={{ animationDelay: '0.2s' }} />
-                  <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" style={{ animationDelay: '0.4s' }} />
-                </div>
               </div>
             )}
 
@@ -1633,32 +1580,28 @@ export default function ChatPage() {
           </div>
         )}
 
-        {/* ── Enhanced Input Bar ── */}
-        <div className="shrink-0 px-4 sm:px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 sm:pt-4 bg-gradient-to-t from-slate-900/95 via-purple-900/10 to-transparent backdrop-blur-sm border-t border-white/10">
+        {/* ── Input Bar ── */}
+        <div className="shrink-0 px-3 sm:px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 sm:pt-3" style={{ borderTop: "1px solid var(--border)", background: "var(--bg-panel)" }}>
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
           {replyingTo && (
-            <div className="mb-3 px-5 py-3 rounded-2xl flex items-center justify-between gap-4 bg-gradient-to-r from-violet-500/10 to-cyan-500/10 border border-violet-400/20 backdrop-blur-sm">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold uppercase tracking-wider text-violet-300 mb-1">
+            <div className="mb-2 px-4 py-2.5 rounded-xl flex items-center justify-between gap-3"
+              style={{ background: "var(--bg-elevated)", borderLeft: "3px solid var(--accent-1)" }}>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--accent-2)" }}>
                   Replying to {replyingTo.senderName}
                 </p>
-                <p className="text-sm truncate text-white/80">{replyingTo.text}</p>
+                <p className="text-xs truncate mt-0.5" style={{ color: "var(--text-muted)" }}>{replyingTo.text}</p>
               </div>
-              <button
-                onClick={() => setReplyingTo(null)}
-                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-xl hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <button onClick={() => setReplyingTo(null)} className="shrink-0 transition-opacity hover:opacity-70" style={{ color: "var(--text-muted)" }}>
                 <X size={16} />
               </button>
             </div>
           )}
 
-          <div className={cn("flex items-center gap-3 p-3 rounded-3xl border-2 transition-all duration-200",
-            replyingTo && "rounded-tl-none rounded-tr-none border-t-0",
-            "bg-gradient-to-r from-slate-800/80 to-slate-900/80 backdrop-blur-xl border-white/20 hover:border-violet-400/30 focus-within:border-violet-400/50 focus-within:shadow-lg focus-within:shadow-violet-500/20")}
-          >
+          <div className={cn("flex items-center gap-2 p-2 rounded-2xl border input-glow transition-all",
+            replyingTo && "rounded-tl-none rounded-tr-none border-t-0")}
+            style={{ background: "var(--bg-elevated)", borderColor: "var(--border)" }}>
 
             {isRecording ? (
               <div className="flex items-center flex-1 py-1 px-3 animate-in fade-in slide-in-from-right-4 duration-300">

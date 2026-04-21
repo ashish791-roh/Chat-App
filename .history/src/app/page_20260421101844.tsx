@@ -773,6 +773,7 @@ export default function ChatPage() {
     <main className="flex h-screen overflow-hidden relative z-10 pb-16 md:pb-0 bg-gradient-to-br from-slate-900 via-purple-900/10 to-slate-900">
       {/* Enhanced background effects */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-900/20 via-transparent to-cyan-900/20 pointer-events-none" />
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%239C92AC" fill-opacity="0.03"%3E%3Ccircle cx="30" cy="30" r="1"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30" />
 
       {/* ── Call Screen ── */}
       {callState !== "idle" && (
@@ -1022,73 +1023,6 @@ export default function ChatPage() {
       )}
 
       {/* ══════════════════════════════════════════════════════════ */}
-      {/* VERTICAL ACTION BAR (WhatsApp Web Style)               */}
-      {/* ══════════════════════════════════════════════════════════ */}
-      <div className="hidden md:flex flex-col w-14 vertical-action-bar">
-        <div className="flex-1 flex flex-col items-center py-4 space-y-2">
-          {/* Find User */}
-          <button
-            onClick={() => setIsSearchModalOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95 group"
-            style={{ color: "var(--text-secondary)" }}
-            title="Find user"
-          >
-            <UserPlus size={20} className="group-hover:text-violet-400 transition-colors" />
-          </button>
-
-          {/* Search Messages */}
-          <button
-            onClick={() => setIsMsgSearchOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95 group"
-            style={{ color: "var(--text-secondary)" }}
-            title="Search messages (Ctrl+K)"
-          >
-            <Search size={20} className="group-hover:text-cyan-400 transition-colors" />
-          </button>
-
-          {/* Call History */}
-          <button
-            onClick={() => setIsCallHistoryOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95 group"
-            style={{ color: "var(--text-secondary)" }}
-            title="Call History"
-          >
-            <Phone size={20} className="group-hover:text-emerald-400 transition-colors" />
-          </button>
-
-          {/* Leaderboard */}
-          <button
-            onClick={() => setIsLeaderboardOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-yellow-500/20 hover:scale-110 active:scale-95 group"
-            title="Leaderboard"
-          >
-            <Trophy size={20} className="text-yellow-500 group-hover:text-yellow-300 transition-colors" />
-          </button>
-
-          {/* Settings */}
-          <button
-            onClick={() => setShowSettings(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95 group"
-            style={{ color: "var(--text-secondary)" }}
-            title="Settings"
-          >
-            <Settings size={20} className="group-hover:text-pink-400 transition-colors" />
-          </button>
-        </div>
-
-        {/* Profile at bottom */}
-        <div className="p-2 border-t border-white/10">
-          <button
-            onClick={() => setIsProfileOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95"
-            title="Profile"
-          >
-            <Avatar name={currentUser.displayName} size="sm" isOnline src={currentUser.avatar} />
-          </button>
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════ */}
       {/* SIDEBAR                                                    */}
       {/* ══════════════════════════════════════════════════════════ */}
       <aside
@@ -1117,6 +1051,46 @@ export default function ChatPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsSearchModalOpen(true)}
+                className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-105 active:scale-95"
+                style={{ color: "var(--text-secondary)" }}
+                title="Find user"
+              >
+                <UserPlus size={18} />
+              </button>
+              {/* ── STEP 5: Message search button ── */}
+              <button
+                onClick={() => setIsMsgSearchOpen(true)}
+                className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-105 active:scale-95"
+                style={{ color: "var(--text-secondary)" }}
+                title="Search messages (Ctrl+K)"
+              >
+                <Search size={18} />
+              </button>
+              <button
+                onClick={() => setIsCallHistoryOpen(true)}
+                className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-105 active:scale-95"
+                style={{ color: "var(--text-secondary)" }}
+                title="Call History"
+              >
+                <Phone size={18} />
+              </button>
+              <button
+                onClick={() => setIsLeaderboardOpen(true)}
+                className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-yellow-500/20 hover:scale-105 active:scale-95"
+                title="Leaderboard"
+              >
+                <Trophy size={18} className="text-yellow-500" />
+              </button>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-105 active:scale-95"
+                style={{ color: "var(--text-secondary)" }}
+                title="Settings"
+              >
+                <Settings size={18} />
+              </button>
               <button
                 onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
                 className="hidden md:flex w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-105 active:scale-95"
@@ -1505,27 +1479,17 @@ export default function ChatPage() {
             className="relative h-full overflow-y-auto px-3 sm:px-5 py-4 sm:py-6 space-y-0.5"
           >
             {messages.length === 0 && activeChat && (
-              <div className="flex flex-col items-center justify-center h-full py-24 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="relative mb-6">
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-violet-500/30 to-cyan-500/30 flex items-center justify-center shadow-2xl backdrop-blur-xl border border-white/10"
-                    style={{ boxShadow: "0 0 60px rgba(108,99,255,0.2)" }}>
-                    <span className="text-5xl animate-bounce">💬</span>
-                  </div>
-                  <div className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg">
-                    <span className="text-lg">✨</span>
-                  </div>
+              <div className="flex flex-col items-center justify-center h-full py-20 text-center">
+                <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-500/20 to-cyan-500/20 flex items-center justify-center mb-4 shadow-lg"
+                  style={{ boxShadow: "0 0 40px rgba(108,99,255,0.15)" }}>
+                  <span className="text-3xl">💬</span>
                 </div>
-                <p className="font-bold text-xl mb-2 text-white" style={{ fontFamily: "var(--font-display)" }}>
+                <p className="font-semibold mb-1" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-display)" }}>
                   Start the conversation
                 </p>
-                <p className="text-base text-white/60 max-w-xs leading-relaxed">
-                  Send a message to {activeChat.name} and begin your chat journey!
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                  Say hi to {activeChat.name}!
                 </p>
-                <div className="mt-6 flex gap-2">
-                  <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" style={{ animationDelay: '0s' }} />
-                  <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" style={{ animationDelay: '0.2s' }} />
-                  <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" style={{ animationDelay: '0.4s' }} />
-                </div>
               </div>
             )}
 

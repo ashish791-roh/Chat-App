@@ -1022,73 +1022,6 @@ export default function ChatPage() {
       )}
 
       {/* ══════════════════════════════════════════════════════════ */}
-      {/* VERTICAL ACTION BAR (WhatsApp Web Style)               */}
-      {/* ══════════════════════════════════════════════════════════ */}
-      <div className="hidden md:flex flex-col w-14 vertical-action-bar">
-        <div className="flex-1 flex flex-col items-center py-4 space-y-2">
-          {/* Find User */}
-          <button
-            onClick={() => setIsSearchModalOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95 group"
-            style={{ color: "var(--text-secondary)" }}
-            title="Find user"
-          >
-            <UserPlus size={20} className="group-hover:text-violet-400 transition-colors" />
-          </button>
-
-          {/* Search Messages */}
-          <button
-            onClick={() => setIsMsgSearchOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95 group"
-            style={{ color: "var(--text-secondary)" }}
-            title="Search messages (Ctrl+K)"
-          >
-            <Search size={20} className="group-hover:text-cyan-400 transition-colors" />
-          </button>
-
-          {/* Call History */}
-          <button
-            onClick={() => setIsCallHistoryOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95 group"
-            style={{ color: "var(--text-secondary)" }}
-            title="Call History"
-          >
-            <Phone size={20} className="group-hover:text-emerald-400 transition-colors" />
-          </button>
-
-          {/* Leaderboard */}
-          <button
-            onClick={() => setIsLeaderboardOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-yellow-500/20 hover:scale-110 active:scale-95 group"
-            title="Leaderboard"
-          >
-            <Trophy size={20} className="text-yellow-500 group-hover:text-yellow-300 transition-colors" />
-          </button>
-
-          {/* Settings */}
-          <button
-            onClick={() => setShowSettings(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95 group"
-            style={{ color: "var(--text-secondary)" }}
-            title="Settings"
-          >
-            <Settings size={20} className="group-hover:text-pink-400 transition-colors" />
-          </button>
-        </div>
-
-        {/* Profile at bottom */}
-        <div className="p-2 border-t border-white/10">
-          <button
-            onClick={() => setIsProfileOpen(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-110 active:scale-95"
-            title="Profile"
-          >
-            <Avatar name={currentUser.displayName} size="sm" isOnline src={currentUser.avatar} />
-          </button>
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════ */}
       {/* SIDEBAR                                                    */}
       {/* ══════════════════════════════════════════════════════════ */}
       <aside
@@ -1117,6 +1050,46 @@ export default function ChatPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsSearchModalOpen(true)}
+                className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-105 active:scale-95"
+                style={{ color: "var(--text-secondary)" }}
+                title="Find user"
+              >
+                <UserPlus size={18} />
+              </button>
+              {/* ── STEP 5: Message search button ── */}
+              <button
+                onClick={() => setIsMsgSearchOpen(true)}
+                className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-105 active:scale-95"
+                style={{ color: "var(--text-secondary)" }}
+                title="Search messages (Ctrl+K)"
+              >
+                <Search size={18} />
+              </button>
+              <button
+                onClick={() => setIsCallHistoryOpen(true)}
+                className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-105 active:scale-95"
+                style={{ color: "var(--text-secondary)" }}
+                title="Call History"
+              >
+                <Phone size={18} />
+              </button>
+              <button
+                onClick={() => setIsLeaderboardOpen(true)}
+                className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-yellow-500/20 hover:scale-105 active:scale-95"
+                title="Leaderboard"
+              >
+                <Trophy size={18} className="text-yellow-500" />
+              </button>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-105 active:scale-95"
+                style={{ color: "var(--text-secondary)" }}
+                title="Settings"
+              >
+                <Settings size={18} />
+              </button>
               <button
                 onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
                 className="hidden md:flex w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 hover:scale-105 active:scale-95"
