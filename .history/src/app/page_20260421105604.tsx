@@ -894,7 +894,28 @@ export default function ChatPage() {
         )}
       </div>
 
-
+      {/* Me footer — desktop only */}
+      <div className="hidden md:block p-4 border-t border-white/10">
+        <div
+          className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-colors hover:bg-white/5"
+          onClick={() => setIsProfileOpen(true)}
+        >
+          <Avatar name={currentUser.displayName} size="sm" isOnline src={currentUser.avatar} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+              {currentUser.displayName}
+            </p>
+            <button
+              onClick={e => { e.stopPropagation(); setIsPhoneModalOpen(true); }}
+              className="text-[10px] font-medium transition-colors hover:opacity-80"
+              style={{ color: "var(--accent-2)" }}
+            >
+              {myPhone || "+ Add phone number"}
+            </button>
+          </div>
+          <Settings size={14} style={{ color: "var(--text-muted)" }} />
+        </div>
+      </div>
     </div>
   );
 
