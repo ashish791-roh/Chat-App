@@ -104,7 +104,8 @@ export default function LoginPage() {
     }, 800);
   };
 
-  if (authLoading) {
+  // Prevent any flash of the login form while auth is resolving or when already logged in
+  if (authLoading || user) {
     return (
       <div className="h-screen flex items-center justify-center">
         <Loader2 className="animate-spin text-blue-600" />
