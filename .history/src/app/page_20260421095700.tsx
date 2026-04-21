@@ -266,14 +266,6 @@ export default function ChatPage() {
     return () => window.removeEventListener("resize", checkMobileView);
   }, []);
 
-  // Close header menu when clicking outside
-  useEffect(() => {
-    if (!showHeaderMenu) return;
-    const handleClickOutside = () => setShowHeaderMenu(false);
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, [showHeaderMenu]);
-
   useEffect(() => {
     if (!currentUser) return;
     if (!socket.connected) socket.connect();
@@ -953,29 +945,11 @@ export default function ChatPage() {
                 style={{ color: "var(--accent-2)" }} title="Leaderboard">
                 <Trophy size={16} className="text-yellow-500" />
               </button>
-              {/* Header menu dropdown (web only) */}
-              <div className="relative">
-                <button 
-                  onClick={() => setShowHeaderMenu(!showHeaderMenu)}
-                  className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
-                  style={{ color: "var(--text-secondary)" }} title="More options">
-                  <ChevronDown size={16} className={cn("transition-transform", showHeaderMenu && "rotate-180")} />
-                </button>
-                {showHeaderMenu && (
-                  <div 
-                    className="absolute right-0 top-full mt-2 w-48 rounded-xl glass-card shadow-2xl animate-in fade-in zoom-in-95 duration-100 z-50"
-                    style={{ background: "var(--bg-panel)", borderColor: "var(--border)" }}>
-                    <div className="p-1.5 border rounded-xl" style={{ borderColor: "var(--border)" }}>
-                      <button 
-                        onClick={() => { setIsGroupModalOpen(true); setShowHeaderMenu(false); }}
-                        className="w-full flex items-center gap-3 p-2.5 rounded-lg transition-colors hover:bg-white/10 text-sm"
-                        style={{ color: "var(--text-primary)" }}>
-                        <Users size={16} /> <span className="font-medium">Create Group</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <button onClick={() => setIsGroupModalOpen(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
+                style={{ color: "var(--text-secondary)" }} title="Create group">
+                <UserPlus size={16} />
+              </button>
               <button onClick={() => setIsSidebarOpen(false)}
                 className="md:hidden w-8 h-8 flex items-center justify-center rounded-xl transition-colors hover:bg-white/8"
                 style={{ color: "var(--text-secondary)" }}>

@@ -266,14 +266,6 @@ export default function ChatPage() {
     return () => window.removeEventListener("resize", checkMobileView);
   }, []);
 
-  // Close header menu when clicking outside
-  useEffect(() => {
-    if (!showHeaderMenu) return;
-    const handleClickOutside = () => setShowHeaderMenu(false);
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, [showHeaderMenu]);
-
   useEffect(() => {
     if (!currentUser) return;
     if (!socket.connected) socket.connect();
