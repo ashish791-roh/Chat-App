@@ -766,7 +766,7 @@ export default function ChatPage() {
   }
 
   return (
-    <main className="flex h-screen overflow-hidden relative z-10 pb-16 md:pb-0">
+    <main className="flex h-screen overflow-hidden relative z-10">
 
       {/* ── Call Screen ── */}
       {callState !== "idle" && (

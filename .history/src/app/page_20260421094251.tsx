@@ -142,7 +142,6 @@ export default function ChatPage() {
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [isSendCoinsModalOpen, setIsSendCoinsModalOpen] = useState(false);
   const [isCallHistoryOpen, setIsCallHistoryOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chats' | 'calls'>('chats');
   const [giftAnimation, setGiftAnimation] = useState<{ emoji: string; label: string } | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [myCoins, setMyCoins] = useState<number>(0);
@@ -766,7 +765,7 @@ export default function ChatPage() {
   }
 
   return (
-    <main className="flex h-screen overflow-hidden relative z-10 pb-16 md:pb-0">
+    <main className="flex h-screen overflow-hidden relative z-10">
 
       {/* ── Call Screen ── */}
       {callState !== "idle" && (
@@ -888,7 +887,7 @@ export default function ChatPage() {
       {/* ══════════════════════════════════════════════════════════ */}
       <aside
         className={cn(
-          "hidden md:flex w-[85vw] max-w-[300px] flex flex-col border-r transition-transform duration-300 ease-in-out",
+          "w-[85vw] max-w-[300px] flex flex-col border-r transition-transform duration-300 ease-in-out",
           "fixed inset-y-0 left-0 z-50 md:relative md:translate-x-0 md:w-[300px]",
           isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
