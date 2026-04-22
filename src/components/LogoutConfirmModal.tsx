@@ -36,6 +36,8 @@ export default function LogoutConfirmModal({ isOpen, onConfirm, onCancel, userNa
         onClick={e => e.stopPropagation()}
       >
         <div className="h-1.5 w-full bg-gradient-to-r from-red-500 via-rose-500 to-orange-500" />
+
+        {/* Icon + title */}
         <div className="flex flex-col items-center gap-3 px-6 pt-8 pb-5">
           <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
             <LogOut size={28} className="text-red-400" />
@@ -54,9 +56,11 @@ export default function LogoutConfirmModal({ isOpen, onConfirm, onCancel, userNa
             </p>
           </div>
         </div>
-
         <div className="mx-6 h-px" style={{ background: "var(--border)" }} />
+
+  
         <div className="flex gap-3 p-5">
+          {/* Cancel */}
           <button
             onClick={onCancel}
             disabled={loading}
@@ -65,7 +69,7 @@ export default function LogoutConfirmModal({ isOpen, onConfirm, onCancel, userNa
           >
             Stay
           </button>
-
+          
           <button
             onClick={handleConfirm}
             disabled={loading}
@@ -98,5 +102,8 @@ export default function LogoutConfirmModal({ isOpen, onConfirm, onCancel, userNa
         </div>
       </div>
     </div>
+  );
+}
+
   );
 }
