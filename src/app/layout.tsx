@@ -28,6 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${dmSans.variable} ${syne.variable} grain`}>
+        {/* Aurora ambient background */}
         <div className="aurora-bg" aria-hidden="true">
           <div className="aurora-orb" />
         </div>
