@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect, useRef, useCallback, KeyboardEvent } from "react";
 import { Search, X, MessageSquare, Users, Clock, Loader2 } from "lucide-react";
 import { searchMessages, SearchResult } from "@/lib/messageSearch";
