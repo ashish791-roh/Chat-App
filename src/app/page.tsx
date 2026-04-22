@@ -165,6 +165,10 @@ export default function ChatPage() {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const userScrolledUpRef = useRef(false);
   const prevMsgCountRef = useRef(0);
+  // FIX: useCall's onCallEnded closes over the initial value of activeChat
+  // (always null / the first chat). A ref always points at the current value,
+  // so the call log lands in the right chat document.
+  const activeChatRef = useRef<typeof activeChat>(null);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -212,7 +216,8 @@ export default function ChatPage() {
              timestamp: serverTimestamp()
            });
 
-           const chatId = activeChat?.id;
+           // FIX: read from ref — activeChat in the closure is stale
+           const chatId = activeChatRef.current?.id;
            if (!chatId) return;
            const typeStr = details.isVideo ? "Video" : "Voice";
            const callText = `📞 ${typeStr} Call ${details.status === "completed" ? "Ended" : details.status}`;
@@ -279,6 +284,9 @@ export default function ChatPage() {
     socket.on("stop_typing", onStop);
     return () => { socket.off("typing", onTyping); socket.off("stop_typing", onStop); };
   }, [currentUser?.uid, activeChat?.id]); // eslint-disable-line
+
+  // Keep the ref in sync with state so onCallEnded always sees the current chat
+  useEffect(() => { activeChatRef.current = activeChat; }, [activeChat]);
 
   useEffect(() => {
     userScrolledUpRef.current = false;
