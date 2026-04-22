@@ -28,6 +28,7 @@ import PhoneNumberModal from "@/components/PhoneNumberModal";
 import UserSearchModal from "@/components/UserSearchModal";
 import CreateGroupModal from "@/components/CreateGroupModal";
 import CallHistoryModal from "@/components/CallHistoryModal";
+import LogoutConfirmModal from "@/components/LogoutConfirmModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import GiftPickerModal, { GiftItem } from "@/components/GiftPickerModal";
 import LeaderboardModal from "@/components/LeaderboardModal";
@@ -120,7 +121,7 @@ function Avatar({
 // ── Main page ─────────────────────────────────────────────────────────────
 export default function ChatPage() {
   const router = useRouter();
-  const { user: authUser, loading } = useAuth();
+  const { user: authUser, loading, logout } = useAuth();
 
   const [input, setInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -152,6 +153,7 @@ export default function ChatPage() {
   const [archivedChats, setArchivedChats] = useState<Set<string>>(new Set());
   const [mutedChats, setMutedChats] = useState<Set<string>>(new Set());
   const [showSettings, setShowSettings] = useState(false);
+  const [isLogoutOpen, setIsLogoutOpen] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMsgSearchOpen, setIsMsgSearchOpen] = useState(false);
@@ -1309,10 +1311,32 @@ export default function ChatPage() {
                 <Phone size={18} style={{ color: "var(--accent-2)" }} />
                 <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Call History</span>
               </button>
+
+              {/* ── Logout ── */}
+              <div className="h-px w-full" style={{ background: "var(--border)" }} />
+              <button
+                onClick={() => { setShowSettings(false); setIsLogoutOpen(true); }}
+                className="w-full flex items-center gap-3 p-3.5 rounded-2xl transition-colors hover:bg-red-500/10 group"
+                style={{ background: "var(--bg-elevated)" }}
+              >
+                <LogOut size={18} className="text-red-400 group-hover:text-red-300 transition-colors" />
+                <span className="text-sm font-medium text-red-400 group-hover:text-red-300 transition-colors">Sign out</span>
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Logout Confirm Modal */}
+      <LogoutConfirmModal
+        isOpen={isLogoutOpen}
+        onCancel={() => setIsLogoutOpen(false)}
+        onConfirm={async () => {
+          await logout();
+          setIsLogoutOpen(false);
+        }}
+        userName={currentUser?.displayName}
+      />
 
       {/* Context Menu */}
       {activeMessage && (
@@ -1392,7 +1416,15 @@ export default function ChatPage() {
               <Settings size={20} className="group-hover:text-pink-400 transition-colors" />
             </button>
           </div>
-          <div className="p-2 border-t border-white/10">
+          <div className="p-2 border-t border-white/10 flex flex-col items-center gap-2">
+            {/* Logout */}
+            <button
+              onClick={() => setIsLogoutOpen(true)}
+              className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-red-500/15 hover:scale-110 active:scale-95 group"
+              title="Sign out"
+            >
+              <LogOut size={18} className="text-red-400/60 group-hover:text-red-400 transition-colors" />
+            </button>
             <button onClick={() => setIsProfileOpen(true)}
               className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 active:scale-95"
               title="Profile">
