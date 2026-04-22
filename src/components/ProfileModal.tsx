@@ -2,7 +2,7 @@
 //
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { X, Camera, User, Check, Bell, BellOff, Loader2 } from "lucide-react";
+import { X, Camera, User, Check, Bell, BellOff, Loader2, Copy, CheckCheck, Fingerprint } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { subscribeToUserStatus } from "@/lib/auth";
 import { doc, updateDoc, increment } from "firebase/firestore";
@@ -17,6 +17,7 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onC
   const [notifications, setNotifications] = useState(true);
   const [saving, setSaving] = useState(false);
   const [coins, setCoins] = useState<number>(500);
+  const [uidCopied, setUidCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load user data when modal opens
@@ -48,6 +49,24 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onC
     } catch (error) {
       console.error(error);
     }
+  };
+
+  const handleCopyUid = () => {
+    if (!user) return;
+    navigator.clipboard.writeText(user.id).then(() => {
+      setUidCopied(true);
+      setTimeout(() => setUidCopied(false), 2000);
+    }).catch(() => {
+      // Fallback for browsers that block clipboard
+      const el = document.createElement("textarea");
+      el.value = user.id;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setUidCopied(true);
+      setTimeout(() => setUidCopied(false), 2000);
+    });
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -113,6 +132,29 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onC
               <div className="flex items-center gap-3 bg-gray-50 dark:bg-slate-800 p-3.5 rounded-2xl border dark:border-slate-700">
                 <input value={bio} onChange={(e) => setBio(e.target.value)} className="bg-transparent outline-none text-sm w-full dark:text-white" />
               </div>
+            </div>
+
+            {/* ── User ID ── */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Your User ID</label>
+              <div className="flex items-center gap-3 bg-gray-50 dark:bg-slate-800 p-3.5 rounded-2xl border dark:border-slate-700">
+                <Fingerprint size={18} className="text-violet-400 shrink-0" />
+                <span className="text-xs font-mono text-gray-500 dark:text-slate-400 flex-1 truncate select-all" title={user?.id}>
+                  {user?.id ?? "—"}
+                </span>
+                <button
+                  onClick={handleCopyUid}
+                  title={uidCopied ? "Copied!" : "Copy UID"}
+                  className="shrink-0 p-1.5 rounded-lg transition-all hover:bg-violet-500/10 active:scale-90"
+                >
+                  {uidCopied
+                    ? <CheckCheck size={16} className="text-emerald-400" />
+                    : <Copy size={16} className="text-gray-400 hover:text-violet-400 transition-colors" />}
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-400 ml-1 mt-0.5">
+                Share this ID so others can find and add you on BlinkChat.
+              </p>
             </div>
 
             <div className="flex items-center justify-between bg-gray-50 dark:bg-slate-800 p-4 rounded-2xl border dark:border-slate-700">
