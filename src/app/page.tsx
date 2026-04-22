@@ -8,7 +8,8 @@ import {
   Mic, ImageIcon, Zap, Edit2, Pin, Star, Forward, Copy,
   Trophy, Coins as CoinsIcon,
   ImagePlay, MessageSquare, ChevronLeft, Archive, Bell, BellOff,
-  Shield, LogOut, Moon, Sun, Camera, User
+  Shield, LogOut, Moon, Sun, Camera, User,
+  PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useFCM }              from "@/hooks/useFCM";
@@ -143,6 +144,8 @@ export default function ChatPage() {
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [isSendCoinsModalOpen, setIsSendCoinsModalOpen] = useState(false);
   const [isCallHistoryOpen, setIsCallHistoryOpen] = useState(false);
+  const [callLogs, setCallLogs] = useState<any[]>([]);
+  const [callLogsLoading, setCallLogsLoading] = useState(false);
   const [giftAnimation, setGiftAnimation] = useState<{ emoji: string; label: string } | null>(null);
   const showScrollBtn = useRef(false);
   const scrollBtnRef = useRef<HTMLButtonElement>(null);
@@ -165,10 +168,6 @@ export default function ChatPage() {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const userScrolledUpRef = useRef(false);
   const prevMsgCountRef = useRef(0);
-  // FIX: useCall's onCallEnded closes over the initial value of activeChat
-  // (always null / the first chat). A ref always points at the current value,
-  // so the call log lands in the right chat document.
-  const activeChatRef = useRef<typeof activeChat>(null);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -216,8 +215,7 @@ export default function ChatPage() {
              timestamp: serverTimestamp()
            });
 
-           // FIX: read from ref — activeChat in the closure is stale
-           const chatId = activeChatRef.current?.id;
+           const chatId = activeChat?.id;
            if (!chatId) return;
            const typeStr = details.isVideo ? "Video" : "Voice";
            const callText = `📞 ${typeStr} Call ${details.status === "completed" ? "Ended" : details.status}`;
@@ -285,9 +283,6 @@ export default function ChatPage() {
     return () => { socket.off("typing", onTyping); socket.off("stop_typing", onStop); };
   }, [currentUser?.uid, activeChat?.id]); // eslint-disable-line
 
-  // Keep the ref in sync with state so onCallEnded always sees the current chat
-  useEffect(() => { activeChatRef.current = activeChat; }, [activeChat]);
-
   useEffect(() => {
     userScrolledUpRef.current = false;
     prevMsgCountRef.current = 0;
@@ -328,6 +323,31 @@ export default function ChatPage() {
     window.addEventListener("keydown", handleGlobalKey);
     return () => window.removeEventListener("keydown", handleGlobalKey);
   }, []);
+
+  // Fetch call logs when the Calls tab is opened in the sidebar
+  useEffect(() => {
+    if (activeTab !== "calls" || !currentUser) return;
+    const fetchCallLogs = async () => {
+      setCallLogsLoading(true);
+      try {
+        const { collection, query, where, orderBy, limit, getDocs } = await import("firebase/firestore");
+        const q = query(
+          collection(db, "calls"),
+          where("members", "array-contains", currentUser.uid),
+          orderBy("timestamp", "desc"),
+          limit(30)
+        );
+        const snap = await getDocs(q);
+        setCallLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (err) {
+        console.error("Call logs fetch error:", err);
+        setCallLogs([]);
+      } finally {
+        setCallLogsLoading(false);
+      }
+    };
+    fetchCallLogs();
+  }, [activeTab, currentUser?.uid]);
 
   const setScrollBtnVisible = useCallback((visible: boolean) => {
     showScrollBtn.current = visible;
@@ -902,16 +922,66 @@ export default function ChatPage() {
 
         {/* Calls Tab */}
         {activeTab === 'calls' && (
-          <div className="px-4 py-4 flex flex-col items-center justify-center min-h-[200px]">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500/20 to-cyan-500/20 flex items-center justify-center mb-3">
-              <Phone size={24} style={{ color: "var(--accent-1)" }} />
-            </div>
-            <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Call History</p>
-            <button onClick={() => setIsCallHistoryOpen(true)}
-              className="mt-3 px-4 py-2 rounded-xl text-xs font-semibold transition-all hover:opacity-80"
-              style={{ background: "var(--grad-accent)", color: "#fff" }}>
-              View All Calls
-            </button>
+          <div className="flex flex-col gap-1 px-2 py-2">
+            {callLogsLoading ? (
+              <div className="flex justify-center py-10">
+                <div className="flex gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <div className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <div className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
+              </div>
+            ) : callLogs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center">
+                  <PhoneOff size={24} style={{ color: "var(--text-muted)" }} />
+                </div>
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>No recent calls</p>
+              </div>
+            ) : (
+              callLogs.map((call) => {
+                const isOutgoing = call.callerId === currentUser?.uid;
+                const isMissed = call.status === "missed" || call.status === "declined";
+                const peerName = isOutgoing ? (call.receiverName ?? "Unknown") : (call.callerName ?? "Unknown");
+                const callTime = call.timestamp?.toDate
+                  ? call.timestamp.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                  : "";
+                const CallIcon = isMissed ? PhoneMissed : isOutgoing ? PhoneOutgoing : PhoneIncoming;
+                const iconColor = isMissed ? "#f87171" : isOutgoing ? "#60a5fa" : "#34d399";
+                return (
+                  <div key={call.id}
+                    className="flex items-center gap-3 px-3 py-3 rounded-2xl transition-colors hover:bg-white/5 cursor-default">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                      style={{ background: `${iconColor}18` }}>
+                      <CallIcon size={16} style={{ color: iconColor }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>
+                        {peerName}
+                      </p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        {call.isVideo
+                          ? <Video size={10} style={{ color: "var(--text-muted)" }} />
+                          : <Phone size={10} style={{ color: "var(--text-muted)" }} />}
+                        <span className="text-xs capitalize" style={{ color: isMissed ? "#f87171" : "var(--text-muted)" }}>
+                          {call.status ?? "—"}
+                        </span>
+                        {call.status === "completed" && call.duration > 0 && (
+                          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                            · {Math.floor(call.duration / 60) > 0
+                               ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s`
+                               : `${call.duration}s`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-[10px] flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+                      {callTime}
+                    </span>
+                  </div>
+                );
+              })
+            )}
           </div>
         )}
       </div>
