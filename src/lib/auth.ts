@@ -161,25 +161,20 @@ export const getUserProfile = async (uid: string) => {
 export const subscribeToAuthState = (
   callback: (user: AppUser | null) => void
 ) => {
-  return onAuthStateChanged(auth, async (firebaseUser) => {
-    if (firebaseUser) {
-      const userRef = doc(db, "users", firebaseUser.uid);
+  return onAuthStateChanged(auth, (firebaseUser) => {
+  if (firebaseUser) {
+    // ✅ don't await — update presence in background
+    setDoc(doc(db, "users", firebaseUser.uid), {
+      isOnline: true,
+      lastSeen: serverTimestamp(),
+    }, { merge: true }).catch(console.error);
 
-      await setDoc(
-        userRef,
-        {
-          isOnline: true,
-          lastSeen: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      callback(formatUser(firebaseUser));
-    } else {
-      callback(null);
-    }
-  });
-};
+    callback(formatUser(firebaseUser)); // ✅ fires immediately
+  } else {
+    callback(null);
+  }
+});
+}
 
 // ── Real-time user status listener ───────────────────────────────────────────
 export const subscribeToUserStatus = (
