@@ -28,17 +28,10 @@ export function useChats(
       snap.forEach((d) => {
         const data = d.data();
 
-        loaded.push({
-          id: d.id,
-          name: data.name ?? "Unknown",
-          isGroup: data.isGroup ?? false,
-          lastMessage: data.lastMessage ?? "",
-          lastMessageAt: data.lastMessageAt ?? null,
-          members: data.members ?? [],
-          pinnedMessage: data.pinnedMessage ?? null,
-          isOnline: false,
-          status: "Offline",
-        });
+      loaded.push({
+  ...
+  avatar: data.avatar ?? data.avatarUrl ?? null, // ✅
+});
       });
 
       setChats(loaded);
