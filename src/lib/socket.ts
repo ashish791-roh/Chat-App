@@ -1,4 +1,4 @@
-import { UserProfile } from 'firebase/auth';
+
 import { io } from 'socket.io-client';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
@@ -14,11 +14,13 @@ export const connectSocket = () => {
 // 🔹 GROUP CHAT FEATURES
 // ==========================
 
-export const emitCreateGroup = (groupData: UserProfile) => {
-  if (socket.connected) {
-    socket.emit("create_group", groupData);
-  }
-};
+interface GroupData {
+  id: string;
+  name: string;
+  members: string[];
+  [key: string]: any;
+}
+export const emitCreateGroup = (groupData: GroupData) => { ... }
 
 export const onGroupCreated = (callback: (group: UserProfile) => void) => {
   socket.on("group_created", callback);
