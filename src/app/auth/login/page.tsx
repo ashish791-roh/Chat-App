@@ -92,17 +92,20 @@ export default function LoginPage() {
 
     setLoading(true);
 
-    setTimeout(() => {
-      if (rememberMe) {
-        localStorage.setItem(
-          "blinkchat_user",
-          JSON.stringify({ email, loggedIn: true })
-        );
-      }
-
-      router.push("/");
-    }, 800);
-  };
+const handleEmailLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError("");
+  if (!email || !password) { setError("Email and password are required"); return; }
+  setLoading(true);
+  try {
+    await login(email, password);   // ✅ actually call Firebase
+    router.push("/");
+  } catch (err: any) {
+    setError(err.message || "Invalid credentials.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Prevent any flash of the login form while auth is resolving or when already logged in
   if (authLoading || user) {
